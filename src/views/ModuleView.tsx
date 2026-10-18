@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AppData, Module, Semester } from '../types';
 import { findRetake, fmt, isFail, levelOf, moduleStats } from '../grading';
 import { YEAR_WEIGHT, autoLevel } from '../taylors';
-import { GradePill, Icon, LetterPicker, NumInput, SaveBar, Sheet, Toggle, TopBar } from '../ui';
+import { Collapse, GradePill, Icon, LetterPicker, NumInput, SaveBar, Sheet, Toggle, TopBar } from '../ui';
 import { confirmLeave, guard, newModule, uid, useDraft } from '../store';
 
 export function ModuleView({ data, sem, mod, update, go }: {
@@ -11,6 +11,7 @@ export function ModuleView({ data, sem, mod, update, go }: {
   const { draft, edit, dirty, reset } = useDraft(mod, mod.id);
   const st = moduleStats(draft, data.settings.roundMarks);
   const [menu, setMenu] = useState(false);
+  const [openPanel, setOpenPanel] = useState<'target' | 'transcript' | null>(null);
   const [retaking, setRetaking] = useState(false);
   const laterSems = data.semesters.slice(data.semesters.findIndex((s) => s.id === sem.id) + 1);
   const [retakeSem, setRetakeSem] = useState(laterSems[0]?.id ?? '');
@@ -43,7 +44,7 @@ export function ModuleView({ data, sem, mod, update, go }: {
   const needText = (() => {
     const n = st.needed;
     if (!n || !draft.target) return null;
-    if (n.kind === 'pct') return <>You need <b>{fmt(n.value, 1)}%</b> on the remaining {fmt(st.totalWeight - st.weightAssessed, 0)}% of marks for {draft.target}.</>;
+    if (n.kind === 'pct') return <>You need <b>{fmt(n.value, 1)}%</b> on {st.weightAssessed > 0 ? `the remaining ${fmt((st.totalWeight || 100) - st.weightAssessed, 0)}% of marks` : 'the module overall'} for {draft.target}.</>;
     if (n.kind === 'secured') return <>{draft.target} is already secured.</>;
     if (n.kind === 'out') return <>{draft.target} is out of reach. Even 100% on what's left won't get there.</>;
     if (n.kind === 'achieved') return <>You reached {draft.target}.</>;
@@ -114,20 +115,18 @@ export function ModuleView({ data, sem, mod, update, go }: {
           <p className="hint">Leave "out of" blank to enter the mark as its contribution (e.g. 18.5 out of a 30% midterm).</p>
           {st.warnings.map((w) => <p key={w} className="warn">{w}</p>)}
 
-          <div className="section-head"><h2>Target grade</h2></div>
-          <div className="card pad">
+          <div className="section-head"><h2>Grades</h2></div>
+          <Collapse title="Target grade" value={draft.target ?? 'None'} open={openPanel === 'target'} onToggle={() => setOpenPanel(openPanel === 'target' ? null : 'target')}>
             <p className="hint tight">{st.projected === null
               ? `The grade you're aiming for. Until you enter marks, it's used for your predicted ${data.settings.yearWeighting !== false ? 'WGPA and WCGPA' : 'GPA and CGPA'}.`
               : "The grade you're aiming for. Your prediction now comes from your marks."}</p>
             <LetterPicker value={draft.target} onChange={(l) => edit((m) => { m.target = l; m.expected = null; })} />
-            {needText && <p className="need">{needText}</p>}
-          </div>
-
-          <div className="section-head"><h2>Transcript grade</h2></div>
-          <div className="card pad">
+          </Collapse>
+          {needText && <p className="need small-need">{needText}</p>}
+          <Collapse title="Transcript grade" value={draft.transcript ?? 'Not released'} open={openPanel === 'transcript'} onToggle={() => setOpenPanel(openPanel === 'transcript' ? null : 'transcript')}>
             <p className="hint tight">Once results are out, pick the letter grade on your transcript. It replaces the prediction in your GPA.</p>
             <LetterPicker value={draft.transcript} onChange={(l) => edit((m) => { m.transcript = l; })} />
-          </div>
+          </Collapse>
 
           {original && (
             <div className="card pad retake-card">

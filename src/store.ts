@@ -110,6 +110,8 @@ export function useStore() {
 // ---- Drafts: edits stay local until the user presses Save ----
 
 export const guard = { dirty: false };
+// The last top-level screen (Grades or Semesters), so a semester's Back button returns there.
+export const nav = { lastTop: '#/' };
 export const confirmLeave = () => !guard.dirty || confirm('You have unsaved changes. Leave without saving?');
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', (e) => { if (guard.dirty) e.preventDefault(); });

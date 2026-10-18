@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AppData, Semester } from '../types';
 import { cumulative, fitLevels, fmt, gpaLabels, isFail, latest, levelOf, moduleStats, supersededIds } from '../grading';
 import { Chevron, GradePill, Icon, NumInput, Sheet, Toggle, TopBar } from '../ui';
-import { newModule, useDraft } from '../store';
+import { nav, newModule, useDraft } from '../store';
 import { LIBRARY, canonName, creditsFor, planGroups, semesterYear, tidySemesterName } from '../taylors';
 
 export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Semester; update: (fn: (d: AppData) => void) => void; go: (h: string) => void }) {
@@ -47,7 +47,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
 
   return (
     <div className="page">
-      <TopBar back={() => go('#/')} title={sem.name} right={<button className="icon-btn" onClick={() => setEditing(true)} aria-label="Semester options"><Icon name="more" /></button>} />
+      <TopBar back={() => go(nav.lastTop)} title={sem.name} right={<button className="icon-btn" onClick={() => setEditing(true)} aria-label="Semester options"><Icon name="more" /></button>} />
       <div className="hero-card sem-card">
         {row.stats.status === 'predicted' ? (
           <div className="duo">

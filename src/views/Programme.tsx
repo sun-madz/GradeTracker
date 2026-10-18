@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
 import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, INTAKE_MONTHS, PROGRAMME_SEMESTERS, canonName, completion, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
 import { SCALE, isFail, moduleStats } from '../grading';
-import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
+import { GradePill, Icon, MENU_COLORS, MenuGroup, MenuRow, NumInput, Sheet, Toggle, TopBar } from '../ui';
 import { newModule, useDraft } from '../store';
 
 type Status = { kind: 'exempt' | 'done' | 'progress' | 'planned' | 'failed'; label: string; sem: string; grade?: ReturnType<typeof moduleStats>['used']; confirmed?: boolean };
@@ -26,7 +26,7 @@ function statusMap(d: AppData) {
 const flexLabel: Record<Flexible, string> = { extension: 'Extension', electives: 'Free electives', minor: 'Minor', 'second-major': 'Second major' };
 const CREDITS_PER_MODULE = 4;
 
-export function Programme({ data, update }: { data: AppData; update: (fn: (d: AppData) => void) => void }) {
+export function Programme({ data, update, section, go }: { data: AppData; update: (fn: (d: AppData) => void) => void; section?: string; go: (h: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [editingIntake, setEditingIntake] = useState(false);
   const done = completion(data.plan);
@@ -53,11 +53,37 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
     );
   };
 
-  return (
-    <div className="page">
-      <div className="page-title"><h1>Programme</h1><p className="muted">{PROGRAMME.name}</p></div>
+  const sheets = (<>
+      <Sheet open={editingIntake} onClose={() => setEditingIntake(false)} title="Intake">
+        <IntakeForm plan={p} onSave={(np) => { update((d) => { d.plan = { ...d.plan, ...np }; }); setEditingIntake(false); }} />
+      </Sheet>
 
-      <div className="section-head"><h2>My plan</h2><button className="link small" onClick={() => setEditing(true)}>{hasPlan ? 'Edit' : 'Set up'}</button></div>
+      <Sheet open={editing} onClose={() => setEditing(false)} title="My plan">
+        <PlanForm plan={p} onSave={(np) => { update((d) => { d.plan = np; }); setEditing(false); }} />
+      </Sheet>
+
+      <Sheet open={!!adding} onClose={() => setAdding(null)} title="Add to a semester">
+        {adding && <AddToSemester data={data} name={adding} onAdd={(semId, credits, exempt) => {
+          const m = newModule(adding, credits ?? CREDITS_PER_MODULE, true, exempt);
+          update((d) => { d.semesters.find((s) => s.id === semId)?.modules.push(m); });
+          setAdding(null);
+        }} />}
+      </Sheet>
+
+      <Sheet open={pickingElectives} onClose={() => setPickingElectives(false)} title="Free electives">
+        <ElectivePicker plan={p} taken={new Set(status.keys())} onSave={(list) => { update((d) => { d.plan.electives = list; }); setPickingElectives(false); }} />
+      </Sheet>
+  </>);
+  const sub = (title: string, content: ReactNode) => (
+    <div className="page">
+      <TopBar back={() => go('#/programme')} title={title} />
+      {content}
+      {sheets}
+    </div>
+  );
+  const compLabel = (p.flexible ?? (p.extension && p.extension !== 'none' ? 'extension' : null)) === 'extension' ? `Extension · ${p.extension ?? '—'}` : p.flexible === 'minor' ? `Minor · ${p.minor ?? '—'}` : p.flexible === 'second-major' ? `Second major${p.secondMajor ? ` · ${p.secondMajor}` : ''}` : p.flexible ? flexLabel[p.flexible] : null;
+
+  if (section === 'plan') return sub('My plan', <>
       <div className="card facts">
         <div><span>Specialisation</span><b>{p.specialisation ?? 'Not chosen'}</b></div>
         <div><span>Year 3 track</span><b>{p.track ?? 'Not chosen'}</b></div>
@@ -65,6 +91,9 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         <div><span>Student</span><b>{p.studentType === 'malaysian' ? 'Malaysian' : p.studentType === 'international' ? 'International' : 'Not chosen'}</b></div>
       </div>
 
+      <button className="primary" style={{ marginTop: 14 }} onClick={() => setEditing(true)}>{hasPlan ? 'Edit plan' : 'Set up my plan'}</button>
+  </>);
+  if (section === 'remaining') return sub('Modules left', <>
       <div className="remaining-hero">
         <div className="rh-num">{left}</div>
         <div className="rh-text"><b>module{left === 1 ? '' : 's'} left to take</b><span>about {left * CREDITS_PER_MODULE} credits · {total - left} of {total} covered</span></div>
@@ -103,7 +132,8 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       })}
       <p className="hint">A module counts as covered once it's in one of your semesters (done, taking or exempted). Tap + to add a remaining module to a semester.</p>
 
-      <div className="section-head"><h2>About the programme</h2><button className="link small" onClick={() => setEditingIntake(true)}>{p.intakeMonth ? 'Edit intake' : 'Add intake'}</button></div>
+  </>);
+  if (section === 'about') return sub('Intake and completion', <>
       <div className="card facts">
         <div><span>Your intake</span><b>{p.intakeMonth && p.intakeYear ? `${p.intakeMonth} ${p.intakeYear}` : 'Not set'}</b></div>
         {done && <div><span>Final semester</span><b>{done.finalStart}</b></div>}
@@ -115,6 +145,9 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       </div>
       <p className="hint">{PROGRAMME.calendar}</p>
 
+      <button className="primary" style={{ marginTop: 14 }} onClick={() => setEditingIntake(true)}>{p.intakeMonth ? 'Edit intake' : 'Add intake'}</button>
+  </>);
+  if (section === 'structure') return sub('Programme structure', <>
       {YEARS.map((y) => (
         <section key={y.title}>
           <div className="section-head"><h2>{y.title}</h2></div>
@@ -127,7 +160,9 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         </section>
       ))}
 
-      <div className="section-head"><h2>Specialisations · pick one</h2></div>
+  </>);
+  if (section === 'specialisations') return sub('Specialisations', <>
+      <p className="hint">Pick one. Each has 4 modules.</p>
       {SPECIALISATIONS.map((s) => (
         <div key={s.title} className="card pad group">
           <div className="group-title">{s.title}</div>
@@ -135,7 +170,9 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         </div>
       ))}
 
-      <div className="section-head"><h2>University core</h2></div>
+  </>);
+  if (section === 'core') return sub('University core (MPU)', <>
+      <div className="section-head"><h2>Study guide list</h2></div>
       <div className="card pad group">
         <div className="group-title">All students</div><ul className="mod-list">{UNIVERSITY_CORE.all.map((m) => <li key={m}>{m}</li>)}</ul>
         <div className="group-title">Malaysian students</div><ul className="mod-list">{UNIVERSITY_CORE.malaysian.map((m) => <li key={m}>{m}</li>)}</ul>
@@ -147,11 +184,13 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         <div className="group-title">International students</div><ul className="mod-list">{UNIVERSITY_CORE_EARLIER.international.map((m) => <li key={m}>{m}</li>)}</ul>
       </div>
 
-      <div className="section-head"><h2>Complementary study</h2></div>
+  </>);
+  if (section === 'complementary') return sub('Complementary study', <>
       <div className="card pad"><ul className="mod-list">{[...FLEXIBLE, ...RULES].map((m) => <li key={m}>{m}</li>)}</ul></div>
       <p className="hint">Lists come from Taylor's Flexible Education Guide (2026 intakes). Earlier intakes may differ slightly, so check your Programme Guide. <a href={FEG_SOURCE} target="_blank" rel="noreferrer">Source</a></p>
 
-      <div className="section-head"><h2>Grading scale</h2></div>
+  </>);
+  if (section === 'grading') return sub('Grading scale', <>
       <div className="card">
         {SCALE.map((s) => (
           <div key={s.letter} className="scale-row">
@@ -163,26 +202,26 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         ))}
       </div>
       <p className="hint">WGPA / WCGPA = Σ(credits × year weight × grade points) ÷ Σ(credits × year weight), where Year 1 = 20%, Year 2 = 30% and Year 3 = 50% (bachelor's intakes from January 2021). Credit-transfer exemptions earn credits but carry no grade. Module lists are from Taylor's website and may change, so check with your faculty. <a href={PROGRAMME.source} target="_blank" rel="noreferrer">Source</a></p>
+  </>);
 
-      <Sheet open={editingIntake} onClose={() => setEditingIntake(false)} title="Intake">
-        <IntakeForm plan={p} onSave={(np) => { update((d) => { d.plan = { ...d.plan, ...np }; }); setEditingIntake(false); }} />
-      </Sheet>
-
-      <Sheet open={editing} onClose={() => setEditing(false)} title="My plan">
-        <PlanForm plan={p} onSave={(np) => { update((d) => { d.plan = np; }); setEditing(false); }} />
-      </Sheet>
-
-      <Sheet open={!!adding} onClose={() => setAdding(null)} title="Add to a semester">
-        {adding && <AddToSemester data={data} name={adding} onAdd={(semId, credits, exempt) => {
-          const m = newModule(adding, credits ?? CREDITS_PER_MODULE, true, exempt);
-          update((d) => { d.semesters.find((s) => s.id === semId)?.modules.push(m); });
-          setAdding(null);
-        }} />}
-      </Sheet>
-
-      <Sheet open={pickingElectives} onClose={() => setPickingElectives(false)} title="Free electives">
-        <ElectivePicker plan={p} taken={new Set(status.keys())} onSave={(list) => { update((d) => { d.plan.electives = list; }); setPickingElectives(false); }} />
-      </Sheet>
+  return (
+    <div className="page">
+      <div className="page-title big"><h1>Programme</h1><p className="muted">{PROGRAMME.name}</p></div>
+      <MenuGroup>
+        <MenuRow icon="target" color={MENU_COLORS.green} title="My plan" sub={hasPlan ? [p.specialisation, p.track, compLabel].filter(Boolean).join(' · ') : 'Not set up yet'} onClick={() => go('#/programme/plan')} />
+        <MenuRow icon="list" color={MENU_COLORS.blue} title="Modules left" sub={`${total - left} of ${total} covered`} badge={left} onClick={() => go('#/programme/remaining')} />
+        <MenuRow icon="calendar" color={MENU_COLORS.orange} title="Intake and completion" sub={done ? `Finishing around ${done.endsAround}` : 'Add your intake'} onClick={() => go('#/programme/about')} />
+      </MenuGroup>
+      <MenuGroup>
+        <MenuRow icon="layers" color={MENU_COLORS.indigo} title="Programme structure" sub="Year 1–3 modules and tracks" onClick={() => go('#/programme/structure')} />
+        <MenuRow icon="star" color={MENU_COLORS.purple} title="Specialisations" sub="Data Science, AI, Cyber Security, Mobile" onClick={() => go('#/programme/specialisations')} />
+        <MenuRow icon="flag" color={MENU_COLORS.teal} title="University core (MPU)" sub="Compulsory general studies" onClick={() => go('#/programme/core')} />
+        <MenuRow icon="puzzle" color={MENU_COLORS.pink} title="Complementary study" sub="Extensions, minors, electives" onClick={() => go('#/programme/complementary')} />
+      </MenuGroup>
+      <MenuGroup>
+        <MenuRow icon="scale" color={MENU_COLORS.lime} title="Grading scale" sub="Grades, points and WGPA weighting" onClick={() => go('#/programme/grading')} />
+      </MenuGroup>
+      {sheets}
     </div>
   );
 }
