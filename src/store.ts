@@ -7,7 +7,7 @@ const KEY = 'grade-tracker-v1';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
-export const emptyPlan = (): Plan => ({ studentType: null, specialisation: null, track: null, extension: null, flexible: null, minor: null, secondMajor: '' });
+export const emptyPlan = (): Plan => ({ studentType: null, specialisation: null, track: null, extension: null, flexible: null, minor: null, secondMajor: '', electives: [] });
 
 export const emptyData = (): AppData => ({
   version: 1,

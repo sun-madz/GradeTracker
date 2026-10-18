@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
-import { EXTENSIONS, FLEXIBLE, MINORS, PROGRAMME, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, YEARS, planGroups } from '../taylors';
+import { EXTENSIONS, FLEXIBLE, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, YEARS, planGroups, progress } from '../taylors';
+import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
 import { SCALE, moduleStats } from '../grading';
-import { GradePill, Sheet } from '../ui';
-import { useDraft } from '../store';
+import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
+import { newModule, useDraft } from '../store';
 
 type Status = { kind: 'exempt' | 'done' | 'progress' | 'planned'; label: string; sem: string; grade?: ReturnType<typeof moduleStats>['used']; confirmed?: boolean };
 
@@ -15,22 +16,39 @@ function statusMap(d: AppData) {
     const v: Status = st.exempt ? { kind: 'exempt', label: 'Exempted', sem: s.name }
       : st.confirmed ? { kind: 'done', label: 'Done', sem: s.name, grade: st.used, confirmed: true }
       : st.projected !== null ? { kind: 'progress', label: st.complete ? 'Awaiting result' : 'In progress', sem: s.name, grade: st.used }
-      : { kind: 'planned', label: 'Planned', sem: s.name };
+      : { kind: 'planned', label: 'Taking', sem: s.name };
     map.set(k, v);
   }
   return map;
 }
 
-const flexLabel: Record<Flexible, string> = { electives: 'Five free electives', minor: 'A minor', 'second-major': 'A second major' };
+const flexLabel: Record<Flexible, string> = { electives: 'Free electives', minor: 'Minor', 'second-major': 'Second major' };
+const CREDITS_PER_MODULE = 4;
 
 export function Programme({ data, update }: { data: AppData; update: (fn: (d: AppData) => void) => void }) {
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<'remaining' | 'all'>('remaining');
+  const [adding, setAdding] = useState<string | null>(null);
+  const [pickingElectives, setPickingElectives] = useState(false);
   const p = data.plan;
-  const status = statusMap(data);
-  const groups = planGroups(p);
+  const status = useMemo(() => statusMap(data), [data]);
+  const groups = useMemo(() => planGroups(p), [p]);
+  const prog = useMemo(() => progress(groups, new Set(status.keys()), p.electives ?? []), [groups, status, p.electives]);
   const hasPlan = !!(p.specialisation || p.track || p.flexible || p.studentType);
-  const all = groups.flatMap((g) => g.modules);
-  const doneCount = all.filter((m) => { const s = status.get(m.toLowerCase()); return s && (s.kind === 'done' || s.kind === 'exempt'); }).length;
+  const left = prog.reduce((n, g) => n + g.needed, 0);
+  const total = prog.reduce((n, g) => n + g.total, 0);
+
+  const row = (m: string, withAdd: boolean) => {
+    const s = status.get(m.toLowerCase());
+    return (
+      <li key={m}>
+        <span className={`dot ${s?.kind ?? 'todo'}`} />
+        <span className="cl-name">{m}{s && <small>{s.label} · {s.sem}</small>}</span>
+        {s?.kind === 'exempt' ? <GradePill letter={null} exempt /> : s?.grade ? <GradePill letter={s.grade} confirmed={s.confirmed} /> : null}
+        {!s && withAdd && <button className="icon-btn subtle add-mini" aria-label={`Add ${m} to a semester`} onClick={() => setAdding(m)}><Icon name="plus" /></button>}
+      </li>
+    );
+  };
 
   return (
     <div className="page">
@@ -45,29 +63,43 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         <div><span>Student</span><b>{p.studentType === 'malaysian' ? 'Malaysian' : p.studentType === 'international' ? 'International' : 'Not chosen'}</b></div>
       </div>
 
-      <div className="section-head"><h2>My modules</h2><span className="muted small">{doneCount} of {all.length} done</span></div>
-      <div className="progress slim" style={{ margin: '0 4px 10px' }}><div className="progress-bar"><span style={{ width: `${all.length ? (doneCount / all.length) * 100 : 0}%` }} /></div></div>
-      {groups.map((g) => (
-        <div key={g.title} className="card pad group">
-          <div className="group-title">{g.title}</div>
-          {g.modules.length > 0 && (
-            <ul className="mod-list check">
-              {g.modules.map((m) => {
-                const s = status.get(m.toLowerCase());
-                return (
-                  <li key={m}>
-                    <span className={`dot ${s?.kind ?? 'todo'}`} />
-                    <span className="cl-name">{m}{s && <small>{s.label} · {s.sem}</small>}</span>
-                    {s?.kind === 'exempt' ? <GradePill letter={null} exempt /> : s?.grade ? <GradePill letter={s.grade} confirmed={s.confirmed} /> : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {g.note && <p className="form-note">{g.note}</p>}
-        </div>
-      ))}
-      <p className="hint">A module is ticked when its name matches a module in one of your semesters.</p>
+      <div className="remaining-hero">
+        <div className="rh-num">{left}</div>
+        <div className="rh-text"><b>module{left === 1 ? '' : 's'} left to take</b><span>about {left * CREDITS_PER_MODULE} credits · {total - left} of {total} covered</span></div>
+      </div>
+      <div className="progress slim" style={{ margin: '0 4px 6px' }}><div className="progress-bar"><span style={{ width: `${total ? ((total - left) / total) * 100 : 0}%` }} /></div></div>
+
+      <div className="segmented" role="tablist">
+        <button role="tab" aria-selected={view === 'remaining'} className={view === 'remaining' ? 'on' : ''} onClick={() => setView('remaining')}>Remaining</button>
+        <button role="tab" aria-selected={view === 'all'} className={view === 'all' ? 'on' : ''} onClick={() => setView('all')}>All modules</button>
+      </div>
+
+      {view === 'remaining' && left === 0 && <p className="empty">Nothing left to take in your plan.</p>}
+      {prog.map(({ group, takenNames, remaining, needed, total: gTotal }) => {
+        if (view === 'remaining' && needed === 0) return null;
+        const isPool = group.kind !== 'fixed';
+        return (
+          <div key={group.key} className="card pad group">
+            <div className="group-head">
+              <div className="group-title">{group.title}</div>
+              <span className={`count ${needed === 0 ? 'ok' : ''}`}>{needed === 0 ? 'Done' : isPool ? `${needed} more to pick` : `${needed} left`}</span>
+            </div>
+            {view === 'remaining' ? (
+              <>
+                {isPool && <p className="form-note tight">{group.kind === 'electives' ? `Taken ${gTotal - needed} of ${gTotal}.` : `Choose ${needed} of these:`}</p>}
+                {remaining.length > 0 && <ul className="mod-list check">{remaining.map((m) => row(m, true))}</ul>}
+              </>
+            ) : (
+              <ul className="mod-list check">
+                {(group.kind === 'electives' ? [...takenNames, ...(p.electives ?? []).filter((m) => !takenNames.includes(m))] : group.modules).map((m) => row(m, true))}
+              </ul>
+            )}
+            {group.kind === 'electives' && <button className="link small block-left" onClick={() => setPickingElectives(true)}>{(p.electives ?? []).length ? 'Change planned electives' : 'Choose electives'}</button>}
+            {group.note && <p className="form-note">{group.note}</p>}
+          </div>
+        );
+      })}
+      <p className="hint">A module counts as covered once it's in one of your semesters (done, taking or exempted). Tap + to add a remaining module to a semester.</p>
 
       <div className="section-head"><h2>About the programme</h2></div>
       <div className="card facts">
@@ -105,7 +137,8 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       </div>
 
       <div className="section-head"><h2>Flexible education</h2></div>
-      <div className="card pad"><ul className="mod-list">{FLEXIBLE.map((m) => <li key={m}>{m}</li>)}</ul></div>
+      <div className="card pad"><ul className="mod-list">{[...FLEXIBLE, ...RULES].map((m) => <li key={m}>{m}</li>)}</ul></div>
+      <p className="hint">Lists come from Taylor's Flexible Education Guide (2026 intakes). Earlier intakes may differ slightly, so check your Programme Guide. <a href={FEG_SOURCE} target="_blank" rel="noreferrer">Source</a></p>
 
       <div className="section-head"><h2>Grading scale</h2></div>
       <div className="card">
@@ -123,7 +156,67 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       <Sheet open={editing} onClose={() => setEditing(false)} title="My plan">
         <PlanForm plan={p} onSave={(np) => { update((d) => { d.plan = np; }); setEditing(false); }} />
       </Sheet>
+
+      <Sheet open={!!adding} onClose={() => setAdding(null)} title="Add to a semester">
+        {adding && <AddToSemester data={data} name={adding} onAdd={(semId, credits, exempt) => {
+          const m = newModule(adding, credits ?? CREDITS_PER_MODULE, true, exempt);
+          update((d) => { d.semesters.find((s) => s.id === semId)?.modules.push(m); });
+          setAdding(null);
+        }} />}
+      </Sheet>
+
+      <Sheet open={pickingElectives} onClose={() => setPickingElectives(false)} title="Free electives">
+        <ElectivePicker plan={p} taken={new Set(status.keys())} onSave={(list) => { update((d) => { d.plan.electives = list; }); setPickingElectives(false); }} />
+      </Sheet>
     </div>
+  );
+}
+
+function AddToSemester({ data, name, onAdd }: { data: AppData; name: string; onAdd: (semId: string, credits: number | null, exempt: boolean) => void }) {
+  const lastWithModules = [...data.semesters].reverse().find((s) => s.modules.length) ?? data.semesters[0];
+  const [semId, setSemId] = useState(lastWithModules?.id ?? '');
+  const [credits, setCredits] = useState<number | null>(CREDITS_PER_MODULE);
+  const [exempt, setExempt] = useState(false);
+  if (!data.semesters.length) return <p className="form-note">Add a semester on the Grades tab first.</p>;
+  return (
+    <>
+      <p className="add-to-name">{name}</p>
+      <label className="field"><span>Semester</span>
+        <select className="text" value={semId} onChange={(e) => setSemId(e.target.value)}>
+          {data.semesters.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select></label>
+      <label className="field"><span>Credits</span><NumInput value={credits} onChange={setCredits} placeholder="4" /></label>
+      <div className="card"><Toggle on={exempt} onChange={setExempt} label="Exempted (credit transfer)" /></div>
+      <button className="primary" disabled={!semId} onClick={() => onAdd(semId, credits, exempt)}>Add module</button>
+    </>
+  );
+}
+
+function ElectivePicker({ plan, taken, onSave }: { plan: Plan; taken: Set<string>; onSave: (l: string[]) => void }) {
+  const [sel, setSel] = useState<string[]>(plan.electives ?? []);
+  const [q, setQ] = useState('');
+  const t = q.trim().toLowerCase();
+  const exclude = new Set(planGroups({ ...plan, flexible: null }).flatMap((g) => g.modules.map((m) => m.toLowerCase())));
+  const toggle = (m: string) => setSel((s) => (s.includes(m) ? s.filter((x) => x !== m) : [...s, m]));
+  const changed = JSON.stringify(sel) !== JSON.stringify(plan.electives ?? []);
+  return (
+    <>
+      <p className="form-note tight">Pick the {ELECTIVES_NEEDED} you plan to take ({sel.length} selected). Modules already in your programme are hidden.</p>
+      <input className="text" placeholder="Search electives" value={q} onChange={(e) => setQ(e.target.value)} />
+      {ELECTIVE_CLUSTERS.map((c) => {
+        const mods = c.modules.filter((m) => !exclude.has(m.toLowerCase()) && (!t || m.toLowerCase().includes(t)));
+        if (!mods.length) return null;
+        return (
+          <div key={c.short} className="form-block" style={{ marginTop: 14 }}>
+            <div className="form-label">{c.name} ({c.short})</div>
+            <div className="choice">
+              {mods.map((m) => <button key={m} className={`chip ${sel.includes(m) ? 'on' : ''}`} onClick={() => toggle(m)}>{m}{taken.has(m.toLowerCase()) ? ' ✓' : ''}</button>)}
+            </div>
+          </div>
+        );
+      })}
+      <button className="primary" disabled={!changed} onClick={() => onSave(sel)}>Save electives</button>
+    </>
   );
 }
 
@@ -154,9 +247,10 @@ function PlanForm({ plan, onSave }: { plan: Plan; onSave: (p: Plan) => void }) {
 
       <div className="form-block"><div className="form-label">Flexible education</div>
         <Choice options={['electives', 'minor', 'second-major'] as Flexible[]} value={draft.flexible}
-          labels={{ electives: 'Free electives', minor: 'Minor', 'second-major': 'Second major' }} onChange={(v) => edit((p) => { p.flexible = v; })} />
-        {draft.flexible === 'minor' && <div style={{ marginTop: 10 }}><Choice options={MINORS} value={draft.minor} onChange={(v) => edit((p) => { p.minor = v; })} /></div>}
-        {draft.flexible === 'second-major' && <input className="text" style={{ marginTop: 10 }} placeholder="Which second major?" value={draft.secondMajor} onChange={(e) => edit((p) => { p.secondMajor = e.target.value; })} />}
+          labels={{ electives: 'Free electives (5)', minor: 'Minor (5)', 'second-major': 'Second major (12)' }} onChange={(v) => edit((p) => { p.flexible = v; })} />
+        {draft.flexible === 'minor' && <><div className="form-label" style={{ marginTop: 14 }}>Which minor?</div><Choice options={MINORS} value={draft.minor} onChange={(v) => edit((p) => { p.minor = v; })} /></>}
+        {draft.flexible === 'second-major' && <><div className="form-label" style={{ marginTop: 14 }}>Which second major?</div><Choice options={SECOND_MAJOR_NAMES} value={draft.secondMajor || null} onChange={(v) => edit((p) => { p.secondMajor = v; })} /></>}
+        {draft.flexible === 'electives' && <p className="form-note">After saving, tap "Choose electives" under My modules to pick them.</p>}
       </div>
 
       <div className="form-block"><div className="form-label">Student</div>

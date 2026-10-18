@@ -3,6 +3,7 @@
 // Credit values are defaults (4 for most modules) – edit them in the app if your transcript differs.
 
 import type { Plan } from './types';
+import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, EXTENSION_PACKAGES, MINOR_PACKAGES, SECOND_MAJORS } from './flexible';
 
 export interface LibModule { name: string; group: string; credits: number }
 
@@ -56,8 +57,8 @@ export const UNIVERSITY_CORE = {
 };
 
 export const FLEXIBLE = [
-  'Five free electives, or one minor, or a second major',
-  'One extension package (must differ from your specialisation)',
+  'Choose one: five free electives, a minor (5 modules) or a second major (12 modules)',
+  'Plus an extension package of 5 modules, which must be different from your specialisation',
 ];
 
 const uniq = (l: LibModule[]) => l.filter((m, i) => l.findIndex((x) => x.name === m.name) === i);
@@ -68,6 +69,10 @@ export const LIBRARY: LibModule[] = uniq([
   ...YEARS[2].groups.flatMap((g) => core(g.modules, `Year 3 · ${g.title}`)),
   ...SPECIALISATIONS.flatMap((s) => core(s.modules, `Specialisation · ${s.title}`)),
   ...core([...UNIVERSITY_CORE.all, ...UNIVERSITY_CORE.malaysian, ...UNIVERSITY_CORE.international, 'Bahasa Kebangsaan A'], 'University core'),
+  ...EXTENSION_PACKAGES.flatMap((e) => core(e.modules, `Extension · ${e.name}`)),
+  ...MINOR_PACKAGES.flatMap((m) => core(m.modules, `Minor · ${m.name}`)),
+  ...SECOND_MAJORS.flatMap((m) => core(m.modules, `Second major · ${m.name}`)),
+  ...ELECTIVE_CLUSTERS.flatMap((c) => core(c.modules, `Free elective · ${c.short}`)),
 ]);
 
 // Suggested semester names for a 3-year plan
@@ -92,33 +97,80 @@ export const EXTENSIONS: Record<string, string[]> = {
   'Mobile Computing': ['Data Science', 'Artificial Intelligence', 'Business Intelligence and Analytics', 'Cyber Security', 'Digital Transformation'],
 };
 
-export const MINORS = ['Accounting', 'Advertising and Brand Management', 'Creative Media Design', 'Entrepreneurship', 'Finance',
-  'International Business', 'Management', 'Marketing'];
+export const MINORS = MINOR_PACKAGES.map((m) => m.name);
+export const SECOND_MAJOR_NAMES = SECOND_MAJORS.map((m) => m.name);
 
-export interface PlanGroup { title: string; modules: string[]; note?: string; slots?: number }
+export interface PlanGroup {
+  key: string;
+  title: string;
+  modules: string[];          // fixed: all required · pool: options to pick from · electives: full catalogue
+  pick?: number;              // how many are needed from a pool
+  kind: 'fixed' | 'pool' | 'electives';
+  note?: string;
+}
 
 // The modules a student needs, based on their choices.
 export function planGroups(p: Plan): PlanGroup[] {
   const g: PlanGroup[] = [
-    { title: 'Year 1 core', modules: YEARS[0].groups[0].modules },
-    { title: 'Year 2 core', modules: YEARS[1].groups[0].modules },
+    { key: 'y1', kind: 'fixed', title: 'Year 1 core', modules: YEARS[0].groups[0].modules },
+    { key: 'y2', kind: 'fixed', title: 'Year 2 core', modules: YEARS[1].groups[0].modules },
   ];
   const spec = SPECIALISATIONS.find((s) => s.title === p.specialisation);
-  if (spec) g.push({ title: `Specialisation · ${spec.title}`, modules: spec.modules });
+  if (spec) g.push({ key: 'spec', kind: 'fixed', title: `Specialisation · ${spec.title}`, modules: spec.modules });
+  const fixedSoFar = new Set(g.flatMap((x) => x.modules.map((m) => m.toLowerCase())));
   if (p.extension && p.extension !== 'none') {
-    const ext = SPECIALISATIONS.find((s) => s.title === p.extension);
-    const mods = ext ? ext.modules.filter((m) => !spec?.modules.includes(m)) : [];
-    g.push({ title: `Extension · ${p.extension}`, modules: mods,
-      note: ext ? undefined : "Taylor's website doesn't list this package's modules. Add them to your semesters as you take them." });
+    const ext = EXTENSION_PACKAGES.find((e) => e.name === p.extension);
+    if (ext) {
+      const overlap = ext.modules.filter((m) => fixedSoFar.has(m.toLowerCase()));
+      const pool = ext.modules.filter((m) => !fixedSoFar.has(m.toLowerCase()));
+      g.push({ key: 'ext', kind: 'pool', title: `Extension · ${ext.name}`, modules: pool, pick: Math.min(ext.pick, pool.length),
+        note: overlap.length ? `${overlap.join(', ')} ${overlap.length > 1 ? 'are' : 'is'} already in your programme. Taylor's asks you to replace overlaps with another module from the package, so check with your faculty.` : undefined });
+    }
   }
   const track = YEARS[2].groups.find((t) => t.title === p.track);
-  if (track) g.push({ title: `Year 3 · ${track.title}`, modules: track.modules });
+  if (track) g.push({ key: 'y3', kind: 'fixed', title: `Year 3 · ${track.title}`, modules: track.modules });
   const uc = [...UNIVERSITY_CORE.all, ...(p.studentType === 'malaysian' ? UNIVERSITY_CORE.malaysian : p.studentType === 'international' ? UNIVERSITY_CORE.international : [])];
-  g.push({ title: 'University core', modules: uc, note: p.studentType ? undefined : 'Choose Malaysian or international in your plan to see the full list.' });
-  if (p.flexible === 'electives') g.push({ title: 'Free electives', modules: [], slots: 5, note: 'Choose five from Taylor\'s free electives.' });
-  if (p.flexible === 'minor') g.push({ title: `Minor · ${p.minor ?? 'not chosen'}`, modules: [], note: 'Add your minor modules to your semesters as you take them.' });
-  if (p.flexible === 'second-major') g.push({ title: `Second major${p.secondMajor ? ` · ${p.secondMajor}` : ''}`, modules: [], note: 'Add your second-major modules to your semesters as you take them.' });
+  g.push({ key: 'uc', kind: 'fixed', title: 'University core', modules: uc, note: p.studentType ? undefined : 'Choose Malaysian or international in your plan to see the full list.' });
+  const taken = new Set(g.filter((x) => x.kind === 'fixed').flatMap((x) => x.modules.map((m) => m.toLowerCase())));
+  if (p.flexible === 'electives') {
+    const all = ELECTIVE_CLUSTERS.flatMap((c) => c.modules).filter((m) => !taken.has(m.toLowerCase()));
+    g.push({ key: 'elec', kind: 'electives', title: 'Free electives', modules: [...new Set(all)], pick: ELECTIVES_NEEDED,
+      note: 'Pick 5 across the three clusters (AHSS, BSM, STS), ideally at least one from each.' });
+  }
+  if (p.flexible === 'minor') {
+    const mi = MINOR_PACKAGES.find((m) => m.name === p.minor);
+    g.push(mi ? { key: 'minor', kind: 'pool', title: `Minor · ${mi.name}`, modules: mi.modules.filter((m) => !taken.has(m.toLowerCase())), pick: mi.pick, note: mi.note }
+      : { key: 'minor', kind: 'pool', title: 'Minor · not chosen', modules: [], pick: 5, note: 'Choose your minor in My plan.' });
+  }
+  if (p.flexible === 'second-major') {
+    const sm = SECOND_MAJORS.find((m) => m.name === p.secondMajor);
+    g.push(sm ? { key: 'sm', kind: 'pool', title: `Second major · ${sm.name}`, modules: sm.modules, pick: sm.pick, note: sm.note }
+      : { key: 'sm', kind: 'pool', title: 'Second major · not chosen', modules: [], pick: 12, note: 'Choose your second major in My plan.' });
+  }
   return g;
+}
+
+export interface GroupProgress { group: PlanGroup; takenNames: string[]; remaining: string[]; needed: number; total: number }
+
+// Works out what's left in each group, given the module names already in your semesters.
+export function progress(groups: PlanGroup[], takenLower: Set<string>, electivePicks: string[] = []): GroupProgress[] {
+  const claimed = new Set<string>();
+  return groups.map((group) => {
+    const inGroup = group.modules.filter((m) => takenLower.has(m.toLowerCase()) && !claimed.has(m.toLowerCase()));
+    inGroup.forEach((m) => claimed.add(m.toLowerCase()));
+    if (group.kind === 'fixed') {
+      const remaining = group.modules.filter((m) => !takenLower.has(m.toLowerCase()));
+      return { group, takenNames: inGroup, remaining, needed: remaining.length, total: group.modules.length };
+    }
+    const pick = group.pick ?? 0;
+    const needed = Math.max(0, pick - inGroup.length);
+    let options = group.modules.filter((m) => !takenLower.has(m.toLowerCase()));
+    if (group.kind === 'electives') {
+      const picks = electivePicks.filter((m) => !takenLower.has(m.toLowerCase()));
+      options = needed ? picks : [];
+    }
+    return { group, takenNames: inGroup.slice(0, pick), remaining: needed ? options : [], needed, total: pick };
+  });
 }
 
 // Starting assessment split for a new module (edit per module)

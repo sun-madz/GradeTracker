@@ -46,6 +46,7 @@ export interface Plan {
   flexible: Flexible | null;
   minor: string | null;
   secondMajor: string;
+  electives: string[];          // free electives you plan to take
 }
 
 export interface AppData {

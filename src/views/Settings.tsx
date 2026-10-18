@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { AppData } from '../types';
 import { NumInput, SaveBar, Toggle } from '../ui';
-import { emptyData, normalise, useDraft, type SyncState } from '../store';
+import { emptyData, newSemester, normalise, useDraft, type SyncState } from '../store';
+import { SEMESTER_TEMPLATE } from '../taylors';
 import { pullFromSheet } from '../sync';
 import { SyncDot } from './Home';
 
@@ -41,6 +42,26 @@ export function Settings({ data, update, replace, sync, syncNow }: {
     } catch { setMsg("That file couldn't be read."); }
   };
 
+  const useTemplate = () => {
+    const have = new Set(data.semesters.map((x) => x.name));
+    const missing = SEMESTER_TEMPLATE.filter((n) => !have.has(n));
+    if (!missing.length) { setMsg('All template semesters are already there.'); return; }
+    if (data.semesters.length && !confirm(`Add ${missing.length} missing semester${missing.length === 1 ? '' : 's'} from the 3-year plan? Your existing grades are kept.`)) return;
+    update((d) => {
+      const byName = new Map(d.semesters.map((x) => [x.name, x]));
+      const ordered = SEMESTER_TEMPLATE.map((n) => byName.get(n) ?? newSemester(n));
+      const extras = d.semesters.filter((x) => !SEMESTER_TEMPLATE.includes(x.name));
+      d.semesters = [...ordered, ...extras];
+    });
+    setMsg(`Added ${missing.length} semester${missing.length === 1 ? '' : 's'}.`);
+  };
+
+  const startBlank = () => {
+    if (!confirm('Erase all semesters and grades on this device? Your Google Sheet link and plan are kept, and the sheet itself is not touched.')) return;
+    const d = emptyData(); d.settings = structuredClone(saved); d.plan = structuredClone(data.plan);
+    replace(d); setMsg('All grades erased.');
+  };
+
   return (
     <div className="page">
       <div className="page-title"><h1>Settings</h1></div>
@@ -77,15 +98,23 @@ export function Settings({ data, update, replace, sync, syncNow }: {
       <label className="field"><span>Credits needed to graduate (optional)</span>
         <NumInput value={s.creditsToGraduate} onChange={(v) => set('creditsToGraduate', v)} placeholder="Check your programme handbook" /></label>
 
-      <div className="section-head"><h2>Data</h2></div>
+      <div className="section-head"><h2>Start over</h2></div>
       <div className="card pad">
-        <p className="hint tight">Your grades are saved on this device. Keep a backup with Google Sheet sync or a file export.</p>
-        <div className="btn-row">
-          <button className="secondary" onClick={exportJson}>Export file</button>
-          <button className="secondary" onClick={() => file.current?.click()}>Import file</button>
+        <p className="hint tight">The same options as the welcome screen. Your Google Sheet link and plan are kept.</p>
+        <div className="stack">
+          <button className="primary" onClick={useTemplate}>Use Taylor's 3-year plan</button>
+          <button className="secondary" onClick={startBlank}>Start blank</button>
+          <button className="secondary" disabled={!saved.sheetUrl || dirty} onClick={restore}>Restore from Google Sheet</button>
+          <button className="secondary" onClick={() => file.current?.click()}>Import a backup file</button>
         </div>
         <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
-        <button className="danger" onClick={() => { if (confirm('Erase all grades on this device? Your Google Sheet is not touched.')) replace(emptyData()); }}>Erase all data</button>
+      </div>
+
+      <div className="section-head"><h2>Backup</h2></div>
+      <div className="card pad">
+        <p className="hint tight">Your grades are saved on this device. Keep a backup with Google Sheet sync or a file export.</p>
+        <button className="secondary" onClick={exportJson}>Export backup file</button>
+        <button className="danger" onClick={startBlank}>Erase all data</button>
       </div>
       <p className="hint" style={{ textAlign: 'center', marginTop: 24 }}>Grade Tracker · version {__APP_VERSION__}</p>
       <SaveBar show={dirty} onSave={save} onDiscard={reset} />

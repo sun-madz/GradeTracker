@@ -244,3 +244,22 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .dot.exempt { background: var(--accent); border-color: var(--accent); }
 .dot.progress { background: var(--c); border-color: var(--c); }
 .dot.planned { border-color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.card.pad > .secondary + .danger { margin-top: 8px; }
+.remaining-hero { display: flex; align-items: center; gap: 14px; padding: 22px 4px 10px; }
+.rh-num { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.rh-text { display: flex; flex-direction: column; }
+.rh-text b { font-size: 16px; font-weight: 600; }
+.rh-text span { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 12px; padding: 3px; margin: 12px 0 12px; }
+.segmented button { padding: 8px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.segmented button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.count { font-size: 12px; font-weight: 600; color: var(--c); background: var(--c-soft); padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.count.ok { color: var(--a); background: var(--a-soft); }
+.form-note.tight { margin: 0 2px 6px; }
+.add-mini { color: var(--accent); width: 30px; height: 30px; }
+.block-left { display: block; padding: 10px 0 2px; }
+.add-to-name { font-weight: 650; font-size: 17px; margin: 0 2px 6px; }
+.setup-list .row { color: var(--ink); }
+.setup-list .row small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; font-weight: 400; }
