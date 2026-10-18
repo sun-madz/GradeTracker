@@ -274,3 +274,11 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .duo-sub { font-size: 13px; color: var(--ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
 .duo-pred .hero-label { color: var(--c); }
 .duo-pred .duo-value { color: var(--c); }
+.stat { text-align: center; }
+.stat-label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat-big { font-size: 46px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.stat-cap { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.stat-small { margin: 12px auto 0; padding-top: 10px; border-top: 1px solid var(--line); width: 70%; font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.stat-small b { display: block; font-size: 20px; color: var(--ink); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.stat.accent .stat-label, .stat.accent .stat-big, .stat.accent .stat-small b { color: var(--c); }
+.hero.compact .hero-sub { margin-top: 14px; line-height: 1.5; }

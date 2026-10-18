@@ -47,27 +47,19 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
       <div className="hero compact">
         {row.stats.status === 'predicted' ? (
           <div className="duo">
-            <div>
-              <div className="hero-label">Now</div>
-              <div className="duo-value">{fmt(before?.cgpa)}</div>
-              <div className="duo-cap">current {L.cgpa}</div>
-              <div className="duo-sub">{L.gpa} last semester {fmt(lastSem?.stats.gpa)}</div>
-            </div>
-            <div className="duo-pred">
-              <div className="hero-label">Predicted</div>
-              <div className="duo-value">{fmt(row.stats.gpa === null ? before?.cgpa : row.cgpa)}</div>
-              <div className="duo-cap">{L.cgpa} after this semester</div>
-              <div className="duo-sub">{L.gpa} this semester {fmt(row.stats.gpa)}</div>
-            </div>
+            <Stat label="Current" big={before?.cgpa} bigCap={L.cgpa} small={lastSem?.stats.gpa} smallCap={L.gpa} />
+            <Stat label="Predicted" accent big={row.stats.gpa === null ? before?.cgpa : row.cgpa} bigCap={L.cgpa} small={row.stats.gpa} smallCap={L.gpa} />
           </div>
         ) : (
           <div className="duo">
-            <div><div className="hero-label">{L.gpa}</div><div className="duo-value">{fmt(row.stats.gpa)}</div><div className="duo-cap">this semester</div></div>
-            <div><div className="hero-label">{L.cgpa}</div><div className="duo-value">{fmt(row.cgpa)}</div><div className="duo-cap">after this semester</div></div>
+            <Stat label="This semester" big={row.stats.gpa} bigCap={L.gpa} />
+            <Stat label="Overall" big={row.cgpa} bigCap={L.cgpa} />
           </div>
         )}
-        <div className="hero-sub">{row.stats.credits} credits{exemptCr ? ` + ${exemptCr} exempted` : ''} · {row.stats.confirmed}/{row.stats.modules - row.stats.exempt} confirmed</div>
-        {row.stats.modules > 0 && row.stats.gpa === null && <p className="form-note" style={{ textAlign: 'center' }}>Open a module and pick an expected grade (or add marks) to see your prediction.</p>}
+        <div className="hero-sub">
+          {row.stats.credits + exemptCr} cr · {row.stats.confirmed} of {row.stats.modules - row.stats.exempt} confirmed
+          {row.stats.status === 'predicted' && row.stats.gpa === null && <><br />Pick expected grades to see a prediction</>}
+        </div>
       </div>
 
       <div className="section-head"><h2>Modules</h2></div>
@@ -151,5 +143,16 @@ function SemesterForm({ sem, onSave, cgpaLabel }: { sem: Semester; cgpaLabel: st
       </div>
       <button className="primary" disabled={!dirty || !draft.name.trim()} onClick={() => onSave({ ...draft, name: tidySemesterName(draft.name) })}>Save</button>
     </>
+  );
+}
+
+function Stat({ label, big, bigCap, small, smallCap, accent }: { label: string; big?: number | null; bigCap: string; small?: number | null; smallCap?: string; accent?: boolean }) {
+  return (
+    <div className={`stat ${accent ? 'accent' : ''}`}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-big">{fmt(big)}</div>
+      <div className="stat-cap">{bigCap}</div>
+      {smallCap && <div className="stat-small"><b>{fmt(small)}</b> {smallCap}</div>}
+    </div>
   );
 }
