@@ -106,7 +106,6 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
               <NumInput value={picked.credits} onChange={(v) => setPicked({ ...picked, credits: v })} placeholder="4" /></label>
             <div className="card"><Toggle on={picked.exempt} onChange={(v) => setPicked({ ...picked, exempt: v })} label="Exempted (credit transfer)" /></div>
             <p className="form-note">{picked.exempt ? 'Credits count towards graduation, with no grade and no effect on GPA.' : 'Starts with Mid Term 30%, Group Project 30% and Final 40%. You can change these after adding.'}</p>
-            <button className="primary" disabled={!picked.name.trim()} onClick={submitModule}>Add module</button>
             <button className="link block" onClick={() => setPicked(null)}>Back to list</button>
           </>
         ) : (
