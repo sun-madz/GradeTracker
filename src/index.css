@@ -205,7 +205,7 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 5px; font-size: 1
 .welcome { text-align: center; padding-top: 18vh; }
 .welcome h1 { font-size: 30px; margin-top: 16px; }
 .welcome p { max-width: 340px; margin: 10px auto 28px; line-height: 1.5; }
-.welcome-mark { width: 64px; height: 64px; border-radius: 18px; background: var(--ink); color: var(--bg); display: grid; place-items: center; margin: 0 auto; font-size: 30px; font-weight: 800; }
+.welcome-mark { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto; }
 .welcome-actions { display: flex; flex-direction: column; gap: 10px; max-width: 360px; margin: 0 auto; }
 .welcome-actions .link { padding: 10px; }
 .app:has(.welcome) .tabbar { display: none; }

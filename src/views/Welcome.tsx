@@ -28,7 +28,7 @@ export function Welcome({ replace }: { replace: (d: AppData) => void }) {
 
   return (
     <div className="page welcome">
-      <div className="welcome-mark">A</div>
+      <img className="welcome-mark" src="/logo-mark.png" alt="" width="72" height="72" />
       <h1>Grade Tracker</h1>
       <p className="muted">Predict your grades, add transcript results when they're out, and track your CGPA. Built around Taylor's University grading.</p>
 
