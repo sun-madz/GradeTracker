@@ -40,6 +40,7 @@ export interface Settings {
   creditsToGraduate: number | null;
   yearWeighting: boolean;       // Taylor's WGPA/WCGPA (20:30:50 by year level)
   currentSemesterId?: string | null; // null = work it out automatically
+  accent?: 'green' | 'orange' | 'purple' | 'blue';
 }
 
 export type Flexible = 'extension' | 'electives' | 'minor' | 'second-major';

@@ -20,6 +20,7 @@ function useHash() {
 
 export default function App() {
   const { data, update, replace, sync, syncNow } = useStore();
+  useEffect(() => { document.documentElement.dataset.accent = data?.settings.accent ?? 'green'; }, [data?.settings.accent]);
   const hash = useHash();
   const go = (h: string) => { location.hash = h; };
   const navGuard = (e: React.MouseEvent) => { if (!confirmLeave()) e.preventDefault(); else guard.dirty = false; };

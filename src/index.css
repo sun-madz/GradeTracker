@@ -315,3 +315,69 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .caret { display: grid; color: var(--muted); transform: rotate(90deg); transition: transform .2s; }
 .caret.up { transform: rotate(-90deg); }
 .accent-text { color: var(--a); }
+
+/* ===== Theme refresh: accent colour, hero cards, filled buttons ===== */
+:root, :root[data-accent="green"] { --accent: #1f8a5b; --accent-2: #34b37a; --accent-soft: #e2f3ea; }
+:root[data-accent="orange"] { --accent: #e0592a; --accent-2: #f5914f; --accent-soft: #fdebe2; }
+:root[data-accent="purple"] { --accent: #7c3aed; --accent-2: #c04de0; --accent-soft: #f1e8fd; }
+:root[data-accent="blue"] { --accent: #2f5bea; --accent-2: #5b8cff; --accent-soft: #e8edfd; }
+:root { --bg: #f3f4f1; --radius: 18px; --shadow: 0 2px 10px rgba(20, 25, 35, .05); }
+@media (prefers-color-scheme: dark) {
+  :root, :root[data-accent] { --accent-soft: color-mix(in srgb, var(--accent) 22%, #15161a); }
+  :root[data-accent="green"], :root:not([data-accent]) { --accent: #2fae74; --accent-2: #1f8a5b; }
+  :root[data-accent="orange"] { --accent: #f07a45; --accent-2: #c94a1f; }
+  :root[data-accent="purple"] { --accent: #a46cf5; --accent-2: #7c3aed; }
+  :root[data-accent="blue"] { --accent: #6f93ff; --accent-2: #2f5bea; }
+  :root { --bg: #0e0f12; }
+}
+.card { border-color: transparent; box-shadow: var(--shadow); }
+@media (prefers-color-scheme: dark) { .card { border-color: var(--line); box-shadow: none; } }
+.primary { background: var(--accent); color: #fff; border-radius: 14px; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tabbar a.on { color: var(--accent); }
+.link, .add-inline, .add-btn, a { color: var(--accent); }
+.add-btn { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.switch.on { background: var(--accent); }
+.segmented button.on { color: var(--accent); }
+.progress-bar span { background: var(--accent); }
+.section-head h2 { color: var(--muted); }
+
+.hero-card { margin: 14px 0 6px; border-radius: 26px; padding: 20px 18px 22px; color: #fff; text-align: center;
+  background: radial-gradient(120% 90% at 100% 0%, var(--accent-2) 0%, transparent 60%), var(--accent);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 35%, transparent); position: relative; overflow: hidden; }
+.hero-card::after { content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%; right: -70px; bottom: -110px; background: rgba(255,255,255,.07); }
+.hc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.hc-title { font-weight: 650; font-size: 15px; opacity: .95; }
+.hero-card .sync-dot { color: rgba(255,255,255,.85); }
+.ring { position: relative; margin: 4px auto 10px; display: grid; place-items: center; }
+.ring svg { position: absolute; inset: 0; }
+.ring-track { stroke: rgba(255,255,255,.22); }
+.ring-fill { stroke: #fff; transition: stroke-dashoffset .6s ease; }
+.ring-inner { position: relative; text-align: center; }
+.ring-value { font-size: 42px; font-weight: 750; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.ring-label { font-size: 12px; font-weight: 700; letter-spacing: .1em; opacity: .85; margin-top: 4px; }
+.hc-sub { font-size: 14px; font-weight: 600; }
+.hc-note { font-size: 12px; opacity: .75; margin-top: 2px; }
+.progress.on-accent .progress-bar { background: rgba(255,255,255,.25); }
+.progress.on-accent .progress-bar span { background: #fff; }
+.progress.on-accent .progress-text { color: rgba(255,255,255,.85); }
+
+/* semester header as a card */
+.sem-card { padding: 18px 14px 16px; margin-top: 6px; }
+.sem-card .stat-label, .sem-card .stat-cap { color: rgba(255,255,255,.8); }
+.sem-card .stat-big { color: #fff; }
+.sem-card .stat-small { border-top-color: rgba(255,255,255,.25); color: rgba(255,255,255,.8); }
+.sem-card .stat-small b { color: #fff; }
+.sem-card .stat.accent .stat-label, .sem-card .stat.accent .stat-big, .sem-card .stat.accent .stat-small b { color: #ffe08a; }
+.sem-card .hero-sub { color: rgba(255,255,255,.85); }
+.sem-card .tcheck { background: rgba(255,255,255,.18) !important; color: #fff !important; }
+
+/* colour swatches */
+.swatches { display: flex; gap: 12px; padding: 4px 4px 2px; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--line); }
+.swatch.on { box-shadow: 0 0 0 2px var(--accent), 0 0 0 5px var(--accent-soft); }
+
+/* softer list rows */
+.row-card { padding: 15px 12px 15px 16px; }
+.pill { border-radius: 12px; }
+.home-hero { display: none; }

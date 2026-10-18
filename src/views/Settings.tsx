@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppData } from '../types';
-import { NumInput, SaveBar, Toggle } from '../ui';
+import { ACCENTS, NumInput, SaveBar, Toggle } from '../ui';
 import { emptyData, newSemester, normalise, useDraft, type SyncState } from '../store';
 import { SEMESTER_TEMPLATE } from '../taylors';
 import { pullFromSheet } from '../sync';
@@ -14,6 +14,7 @@ export function Settings({ data, update, replace, sync, syncNow }: {
   const { draft: s, edit, dirty, reset } = useDraft(saved, 'settings');
   const set = <K extends keyof AppData['settings']>(k: K, v: AppData['settings'][K]) => edit((d) => { d[k] = v; });
   const save = () => update((d) => { d.settings = structuredClone(s); });
+  useEffect(() => () => { document.documentElement.dataset.accent = data.settings.accent ?? 'green'; }, [data.settings.accent]);
   const autoCur = currentSemester({ ...data, settings: { ...data.settings, currentSemesterId: null } });
   const [msg, setMsg] = useState('');
   const file = useRef<HTMLInputElement>(null);
@@ -93,6 +94,14 @@ export function Settings({ data, update, replace, sync, syncNow }: {
         </details>
       </div>
 
+      <div className="section-head"><h2>Colour</h2></div>
+      <div className="swatches">
+        {(Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]).map((k) => (
+          <button key={k} className={`swatch ${(s.accent ?? 'green') === k ? 'on' : ''}`} style={{ background: ACCENTS[k] }} aria-label={k}
+            onClick={() => { set('accent', k); document.documentElement.dataset.accent = k; }} />
+        ))}
+      </div>
+
       <div className="section-head"><h2>Current semester</h2></div>
       <label className="field" style={{ marginTop: 0 }}><span>Shown first on the Grades screen</span>
         <select className="text" value={s.currentSemesterId ?? ''} onChange={(e) => set('currentSemesterId', e.target.value || null)}>
@@ -129,7 +138,7 @@ export function Settings({ data, update, replace, sync, syncNow }: {
         <button className="danger" onClick={startBlank}>Erase all data</button>
       </div>
       <p className="hint" style={{ textAlign: 'center', marginTop: 24 }}>Grade Tracker · version {__APP_VERSION__}</p>
-      <SaveBar show={dirty} onSave={save} onDiscard={reset} />
+      <SaveBar show={dirty} onSave={save} onDiscard={() => { reset(); document.documentElement.dataset.accent = data.settings.accent ?? 'green'; }} />
       {msg && <p className="toast" onAnimationEnd={() => setMsg('')}>{msg}</p>}
     </div>
   );

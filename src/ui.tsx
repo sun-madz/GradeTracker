@@ -120,3 +120,20 @@ export function SaveBar({ show, onSave, onDiscard, label = 'Save changes' }: { s
     </div>
   );
 }
+
+export function Ring({ value, max = 4, size = 148, children }: { value: number | null; max?: number; size?: number; children?: ReactNode }) {
+  const r = (size - 14) / 2, c = 2 * Math.PI * r;
+  const pct = value === null ? 0 : Math.max(0, Math.min(1, value / max));
+  return (
+    <div className="ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} className="ring-track" strokeWidth="10" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} className="ring-fill" strokeWidth="10" fill="none" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </svg>
+      <div className="ring-inner">{children}</div>
+    </div>
+  );
+}
+
+export const ACCENTS = { green: '#1f8a5b', orange: '#e8622c', purple: '#8b3fd9', blue: '#2f5bea' } as const;

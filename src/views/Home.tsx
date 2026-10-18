@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppData } from '../types';
 import { cumulative, currentSemester, fmt, gpaLabels, latest, moduleStats } from '../grading';
-import { Chevron, GradePill, Icon, Sheet } from '../ui';
+import { Chevron, GradePill, Icon, Ring, Sheet } from '../ui';
 import { newSemester } from '../store';
 import { SEMESTER_TEMPLATE, semesterYear, tidySemesterName } from '../taylors';
 import type { SyncState } from '../store';
@@ -48,12 +48,16 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
 
   return (
     <div className="page">
-      <div className="hero home-hero">
-        <div className="hero-label">{L.cgpa} <SyncDot sync={sync} /></div>
-        <div className="hero-value">{fmt(cgpa)}</div>
-        <div className="hero-sub">{credits} credits{exempt ? ` (${exempt} exempted)` : ''} · confirmed grades only</div>
+      <div className="hero-card">
+        <div className="hc-top"><span className="hc-title">My grades</span><SyncDot sync={sync} /></div>
+        <Ring value={cgpa}>
+          <div className="ring-value">{fmt(cgpa)}</div>
+          <div className="ring-label">{L.cgpa}</div>
+        </Ring>
+        <div className="hc-sub">out of 4.00 · {credits} credits{exempt ? ` (${exempt} exempted)` : ''}</div>
+        <div className="hc-note">Confirmed transcript grades only</div>
         {goal ? (
-          <div className="progress" aria-label="Credits towards graduation">
+          <div className="progress on-accent" aria-label="Credits towards graduation">
             <div className="progress-bar"><span style={{ width: `${Math.min(100, (credits / goal) * 100)}%` }} /></div>
             <div className="progress-text">{credits} / {goal} credits to graduate</div>
           </div>

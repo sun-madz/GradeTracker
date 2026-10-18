@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // Bump this when releasing an update – it shows at the bottom of Settings.
-const APP_VERSION = '1.15'
+const APP_VERSION = '1.16'
 
 // https://vite.dev/config/
 export default defineConfig({

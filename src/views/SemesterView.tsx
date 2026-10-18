@@ -48,7 +48,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
   return (
     <div className="page">
       <TopBar back={() => go('#/')} title={sem.name} right={<button className="icon-btn" onClick={() => setEditing(true)} aria-label="Semester options"><Icon name="more" /></button>} />
-      <div className="hero compact">
+      <div className="hero-card sem-card">
         {row.stats.status === 'predicted' ? (
           <div className="duo">
             <Stat label="Current" big={current?.cgpa} bigCap={L.cgpa} small={lastFinal?.stats.gpa} smallCap={L.gpa} />
