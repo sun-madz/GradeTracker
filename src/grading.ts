@@ -36,11 +36,16 @@ export interface ModuleStats {
   points: number | null;
   confirmed: boolean;
   complete: boolean;
+  exempt: boolean;
   needed: { kind: 'pct'; value: number } | { kind: 'secured' | 'out' | 'achieved' | 'missed' } | null;
   warnings: string[];
 }
 
 export function moduleStats(m: Module, round: boolean): ModuleStats {
+  if (m.exempt) {
+    return { totalWeight: 0, weightAssessed: 0, secured: 0, projected: null, predicted: null, used: null, points: null,
+      confirmed: false, complete: true, exempt: true, needed: null, warnings: [] };
+  }
   let totalWeight = 0, weightAssessed = 0, secured = 0;
   const warnings: string[] = [];
   for (const a of m.assessments) {
@@ -70,38 +75,42 @@ export function moduleStats(m: Module, round: boolean): ModuleStats {
       needed = v <= 0 ? { kind: 'secured' } : v > 1 ? { kind: 'out' } : { kind: 'pct', value: v * 100 };
     }
   }
-  return { totalWeight, weightAssessed, secured, projected, predicted, used, points, confirmed: !!m.transcript, complete, needed, warnings };
+  return { totalWeight, weightAssessed, secured, projected, predicted, used, points, confirmed: !!m.transcript, complete, exempt: false, needed, warnings };
 }
 
 export interface SemesterStats {
   credits: number;           // credits counted in GPA
+  exemptCredits: number;     // credits earned through credit transfer
   gpa: number | null;
   modules: number;
   confirmed: number;
+  exempt: number;
   status: 'empty' | 'predicted' | 'final';
 }
 
 export function semesterStats(s: Semester, round: boolean): SemesterStats {
-  let qp = 0, credits = 0, confirmed = 0;
+  let qp = 0, credits = 0, confirmed = 0, exempt = 0, exemptCredits = 0;
   for (const m of s.modules) {
     const st = moduleStats(m, round);
     if (st.confirmed) confirmed++;
+    if (st.exempt) { exempt++; exemptCredits += isNum(m.credits) ? m.credits : 0; continue; }
     if (m.countsInGPA && st.points !== null && isNum(m.credits)) { qp += st.points * m.credits; credits += m.credits; }
   }
   const n = s.modules.length;
   return {
-    credits, gpa: credits ? qp / credits : null, modules: n, confirmed,
-    status: n === 0 ? 'empty' : confirmed === n ? 'final' : 'predicted',
+    credits, exemptCredits, gpa: credits ? qp / credits : null, modules: n, confirmed, exempt,
+    status: n === 0 ? 'empty' : confirmed + exempt === n ? 'final' : 'predicted',
   };
 }
 
-export interface CumulativeRow { semester: Semester; stats: SemesterStats; cumCredits: number; cgpa: number | null; official: boolean }
+export interface CumulativeRow { semester: Semester; stats: SemesterStats; cumCredits: number; cumExempt: number; cgpa: number | null; official: boolean }
 
 export function cumulative(d: AppData): CumulativeRow[] {
   const round = d.settings.roundMarks;
-  let cc = 0, cg: number | null = null;
+  let cc = 0, ce = 0, cg: number | null = null;
   return d.semesters.map((s) => {
     const stats = semesterStats(s, round);
+    ce += stats.exemptCredits;
     const official = isNum(s.officialCGPA);
     if (official) {
       cc = isNum(s.officialCredits) ? s.officialCredits : cc + stats.credits;
@@ -111,7 +120,7 @@ export function cumulative(d: AppData): CumulativeRow[] {
       cc += stats.credits;
       cg = (prev + (stats.gpa ?? 0) * stats.credits) / cc;
     }
-    return { semester: s, stats, cumCredits: cc, cgpa: cg, official };
+    return { semester: s, stats, cumCredits: cc, cumExempt: ce, cgpa: cg, official };
   });
 }
 

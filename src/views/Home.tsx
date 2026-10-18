@@ -3,14 +3,15 @@ import type { AppData } from '../types';
 import { cumulative, fmt } from '../grading';
 import { Chevron, Icon, Sheet } from '../ui';
 import { newSemester } from '../store';
-import { SEMESTER_TEMPLATE } from '../taylors';
+import { SEMESTER_TEMPLATE, tidySemesterName } from '../taylors';
 import type { SyncState } from '../store';
 
 export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (d: AppData) => void) => void; go: (h: string) => void; sync: SyncState }) {
   const rows = cumulative(data);
   const last = [...rows].reverse().find((r) => r.cgpa !== null);
   const cgpa = last?.cgpa ?? null;
-  const credits = last?.cumCredits ?? 0;
+  const exempt = rows.length ? rows[rows.length - 1].cumExempt : 0;
+  const credits = (last?.cumCredits ?? 0) + exempt;
   const anyPredicted = rows.some((r) => r.stats.status === 'predicted');
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -21,7 +22,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
 
   const add = (n: string) => {
     if (!n.trim()) return;
-    const s = newSemester(n.trim());
+    const s = newSemester(tidySemesterName(n));
     update((d) => { d.semesters.push(s); });
     setAdding(false); setName('');
     go(`#/s/${s.id}`);
@@ -33,7 +34,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
         <div className="hero-label">CGPA <SyncDot sync={sync} /></div>
         <div className="hero-value">{fmt(cgpa)}</div>
         <div className="hero-sub">
-          {credits} credits{anyPredicted ? ' · includes predictions' : cgpa !== null ? ' · confirmed' : ''}
+          {credits} credits{exempt ? ` (${exempt} exempted)` : ''}{anyPredicted ? ' · includes predictions' : cgpa !== null ? ' · confirmed' : ''}
         </div>
         {goal ? (
           <div className="progress" aria-label="Credits towards graduation">
@@ -51,7 +52,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
             <div className="rc-main">
               <div className="rc-title">{r.semester.name}</div>
               <div className="rc-sub">
-                {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {r.stats.credits} cr
+                {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {r.stats.credits + r.stats.exemptCredits} cr
                 {r.stats.status === 'final' && <span className="tag ok">Final</span>}
                 {r.stats.status === 'predicted' && <span className="tag">Predicted</span>}
                 {r.official && <span className="tag ok">Official CGPA</span>}
@@ -69,10 +70,11 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="New semester">
         <div className="field">
-          <input className="text" autoFocus placeholder="e.g. Y2 S1" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(name)} />
+          <input className="text" autoFocus placeholder="e.g. Year 2 Semester 1" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(name)} />
         </div>
-        {suggestions.length > 0 && <div className="chips-wrap">{suggestions.map((s) => <button key={s} className="chip" onClick={() => add(s)}>{s}</button>)}</div>}
-        <button className="primary" disabled={!name.trim()} onClick={() => add(name)}>Add</button>
+        {suggestions.length > 0 && <div className="chips-wrap">{suggestions.slice(0, 6).map((s) => <button key={s} className={`chip ${name === s ? 'on' : ''}`} onClick={() => setName(s)}>{s}</button>)}</div>}
+        {name.trim() && tidySemesterName(name) !== name.trim() && <p className="form-note">Will be saved as “{tidySemesterName(name)}”</p>}
+        <button className="primary" disabled={!name.trim()} onClick={() => add(name)}>Add semester</button>
       </Sheet>
     </div>
   );

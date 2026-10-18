@@ -5,26 +5,32 @@ import { cumulative, moduleStats, isNum } from './grading';
 // Apps Script stays tiny and the sheet always matches what the app shows.
 export function sheetTables(d: AppData) {
   const round = d.settings.roundMarks;
-  const overview: (string | number)[][] = [['Semester', 'Credits', 'Semester GPA', 'Status', 'Confirmed', 'Cumulative credits', 'CGPA', 'Basis']];
+  const overview: (string | number)[][] = [['Semester', 'Credits (GPA)', 'Exempted credits', 'Semester GPA', 'Status', 'Confirmed', 'Cumulative credits', 'CGPA', 'Basis']];
   const modules: (string | number)[][] = [['Semester', 'Module', 'Credits', 'Counts in GPA', 'Weight assessed %', 'Projected %', 'Predicted', 'Transcript', 'Grade used', 'Points', 'Status']];
   const assessments: (string | number)[][] = [['Semester', 'Module', 'Assessment', 'Weight %', 'Score', 'Out of', 'Contribution']];
-  const r2 = (n: number | null) => (isNum(n) ? Math.round(n * 100) / 100 : '');
+  const r2 = (n: number | null) => (isNum(n) ? Number(n.toFixed(2)) : '');
 
   for (const row of cumulative(d)) {
     const s = row.semester;
-    overview.push([s.name, row.stats.credits, r2(row.stats.gpa), row.stats.status, `${row.stats.confirmed}/${row.stats.modules}`,
-      row.cumCredits, r2(row.cgpa), row.official ? 'Official (transcript)' : row.stats.status === 'final' ? 'Transcript grades' : 'Includes predictions']);
+    overview.push([s.name, row.stats.credits, row.stats.exemptCredits, r2(row.stats.gpa), row.stats.status, `${row.stats.confirmed}/${row.stats.modules - row.stats.exempt}`,
+      row.cumCredits, r2(row.cgpa), row.official ? 'Official (transcript)' : row.stats.status === 'empty' ? 'Carried forward' : row.stats.status === 'final' ? 'Transcript grades' : 'Includes predictions']);
     for (const m of s.modules) {
       const st = moduleStats(m, round);
-      modules.push([s.name, m.name, m.credits, m.countsInGPA ? 'Yes' : 'No', r2(st.weightAssessed), r2(st.projected), st.predicted ?? '',
-        m.transcript ?? '', st.used ?? '', r2(st.points), st.confirmed ? 'Confirmed' : st.complete ? 'Predicted – all marks in' : 'Predicted – in progress']);
-      for (const a of m.assessments) {
+      modules.push([s.name, m.name, m.credits, st.exempt ? 'No (exempted)' : m.countsInGPA ? 'Yes' : 'No', st.exempt ? '' : r2(st.weightAssessed), r2(st.projected), st.predicted ?? '',
+        st.exempt ? 'EX' : m.transcript ?? '', st.used ?? (st.exempt ? 'EX' : ''), r2(st.points),
+        st.exempt ? 'Exempted (credit transfer)' : st.confirmed ? 'Confirmed' : st.complete ? 'Predicted – all marks in' : 'Predicted – in progress']);
+      if (!st.exempt) for (const a of m.assessments) {
         const out = isNum(a.outOf) && a.outOf > 0 ? a.outOf : a.weight;
         assessments.push([s.name, m.name, a.name, a.weight, isNum(a.score) ? a.score : '', out,
           isNum(a.score) && out ? r2((a.score / out) * a.weight) : '']);
       }
     }
   }
+  const p = d.plan;
+  overview.push([], ['My plan'], ['Specialisation', p.specialisation ?? ''], ['Extension', p.extension === 'none' ? 'None' : p.extension ?? ''],
+    ['Year 3 track', p.track ?? ''],
+    ['Flexible education', p.flexible === 'minor' ? `Minor: ${p.minor ?? ''}` : p.flexible === 'second-major' ? `Second major: ${p.secondMajor}` : p.flexible === 'electives' ? 'Free electives' : ''],
+    ['Student', p.studentType ?? '']);
   return { overview, modules, assessments };
 }
 

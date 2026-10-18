@@ -1,107 +1,135 @@
 import { useState } from 'react';
 import type { AppData, Module, Semester } from '../types';
 import { fmt, moduleStats } from '../grading';
-import { GradePill, Icon, LetterPicker, NumInput, Sheet, Toggle, TopBar } from '../ui';
-import { uid } from '../store';
+import { GradePill, Icon, LetterPicker, NumInput, SaveBar, Sheet, Toggle, TopBar } from '../ui';
+import { confirmLeave, guard, uid, useDraft } from '../store';
 
 export function ModuleView({ data, sem, mod, update, go }: {
   data: AppData; sem: Semester; mod: Module; update: (fn: (d: AppData) => void) => void; go: (h: string) => void;
 }) {
-  const st = moduleStats(mod, data.settings.roundMarks);
+  const { draft, edit, dirty, reset } = useDraft(mod, mod.id);
+  const st = moduleStats(draft, data.settings.roundMarks);
   const [menu, setMenu] = useState(false);
-  const edit = (fn: (m: Module) => void) => update((d) => {
-    const m = d.semesters.find((s) => s.id === sem.id)?.modules.find((x) => x.id === mod.id);
-    if (m) fn(m);
-  });
-  const back = () => go(`#/s/${sem.id}`);
+  const [moveTo, setMoveTo] = useState(sem.id);
+
+  const save = (targetSem = sem.id) => {
+    update((d) => {
+      const from = d.semesters.find((s) => s.id === sem.id)!;
+      const idx = from.modules.findIndex((m) => m.id === mod.id);
+      if (idx < 0) return;
+      if (targetSem === sem.id) from.modules[idx] = structuredClone(draft);
+      else { from.modules.splice(idx, 1); d.semesters.find((s) => s.id === targetSem)!.modules.push(structuredClone(draft)); }
+    });
+  };
+  const back = () => { if (confirmLeave()) { guard.dirty = false; go(`#/s/${sem.id}`); } };
 
   const needText = (() => {
     const n = st.needed;
-    if (!n || !mod.target) return null;
-    if (n.kind === 'pct') return <>You need <b>{fmt(n.value, 1)}%</b> on the remaining {fmt(st.totalWeight - st.weightAssessed, 0)}% of marks for {mod.target}.</>;
-    if (n.kind === 'secured') return <>{mod.target} is already secured.</>;
-    if (n.kind === 'out') return <>{mod.target} is out of reach. Even 100% on what's left won't get there.</>;
-    if (n.kind === 'achieved') return <>You reached {mod.target}.</>;
-    return <>You finished below {mod.target}.</>;
+    if (!n || !draft.target) return null;
+    if (n.kind === 'pct') return <>You need <b>{fmt(n.value, 1)}%</b> on the remaining {fmt(st.totalWeight - st.weightAssessed, 0)}% of marks for {draft.target}.</>;
+    if (n.kind === 'secured') return <>{draft.target} is already secured.</>;
+    if (n.kind === 'out') return <>{draft.target} is out of reach. Even 100% on what's left won't get there.</>;
+    if (n.kind === 'achieved') return <>You reached {draft.target}.</>;
+    return <>You finished below {draft.target}.</>;
   })();
 
   return (
     <div className="page">
-      <TopBar back={back} title={sem.name} right={<button className="icon-btn" onClick={() => setMenu(true)} aria-label="Module options"><Icon name="more" /></button>} />
+      <TopBar back={back} title={sem.name} right={<button className="icon-btn" onClick={() => { setMoveTo(sem.id); setMenu(true); }} aria-label="Module options"><Icon name="more" /></button>} />
 
       <div className="mod-head">
-        <textarea className="title-input" rows={1} value={mod.name} ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }} onChange={(e) => edit((m) => { m.name = e.target.value.replace(/\n/g, " "); })} aria-label="Module name" />
+        <textarea className="title-input" rows={1} value={draft.name} aria-label="Module name"
+          ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+          onChange={(e) => edit((m) => { m.name = e.target.value.replace(/\n/g, ' '); })} />
         <div className="mod-summary">
-          <GradePill letter={st.used} confirmed={st.confirmed} size="lg" />
+          <GradePill letter={st.used} confirmed={st.confirmed} exempt={st.exempt} size="lg" />
           <div>
-            <div className="big-num">{st.projected === null ? '—' : `${fmt(st.projected, 1)}%`}</div>
+            <div className="big-num">{st.exempt ? `${draft.credits} cr` : st.projected === null ? '—' : `${fmt(st.projected, 1)}%`}</div>
             <div className="muted small">
-              {st.confirmed ? `Transcript grade${st.predicted && st.predicted !== mod.transcript ? ` · predicted ${st.predicted}` : st.predicted ? ' · matches prediction' : ''}`
+              {st.exempt ? 'Exempted · credit transfer'
+                : st.confirmed ? `Transcript grade${st.predicted && st.predicted !== draft.transcript ? ` · predicted ${st.predicted}` : st.predicted ? ' · matches prediction' : ''}`
                 : st.projected === null ? 'Enter a mark to see a prediction'
                 : st.complete ? 'Predicted · all marks in' : `Projected at your current pace · ${fmt(st.secured, 1)} marks banked`}
             </div>
           </div>
         </div>
-        {st.weightAssessed > 0 && st.totalWeight > 0 && (
+        {!st.exempt && st.weightAssessed > 0 && st.totalWeight > 0 && (
           <div className="progress slim"><div className="progress-bar"><span style={{ width: `${Math.min(100, (st.weightAssessed / st.totalWeight) * 100)}%` }} /></div>
             <div className="progress-text">{fmt(st.weightAssessed, 0)}% of the module marked</div></div>
         )}
       </div>
 
-      <div className="section-head"><h2>Assessments</h2><span className="muted small">score / out of</span></div>
-      <div className="card">
-        {mod.assessments.map((a, i) => {
-          const out = a.outOf ?? a.weight;
-          return (
-            <div key={a.id} className="assess">
-              <input className="assess-name" value={a.name} placeholder="Assessment" onChange={(e) => edit((m) => { m.assessments[i].name = e.target.value; })} />
-              <div className="assess-weight"><NumInput value={a.weight} onChange={(v) => edit((m) => { m.assessments[i].weight = v ?? 0; })} ariaLabel="Weight" /><span>%</span></div>
-              <div className="assess-score">
-                <NumInput value={a.score} onChange={(v) => edit((m) => { m.assessments[i].score = v; })} placeholder="–" ariaLabel="Score" />
-                <span>/</span>
-                <NumInput value={a.outOf} onChange={(v) => edit((m) => { m.assessments[i].outOf = v; })} placeholder={String(out || '')} ariaLabel="Out of" />
-              </div>
-              <button className="icon-btn subtle" aria-label="Remove assessment" onClick={() => edit((m) => { m.assessments.splice(i, 1); })}><Icon name="trash" /></button>
+      {st.exempt ? (
+        <>
+          <div className="section-head"><h2>Credit transfer</h2></div>
+          <div className="card exempt-card">
+            <div>
+              <b>You're exempted from this module</b>
+              <p>Its {draft.credits} credits count towards graduation but have no grade, so they don't affect your GPA or CGPA.</p>
             </div>
-          );
-        })}
-        <button className="add-inline" onClick={() => edit((m) => { m.assessments.push({ id: uid(), name: '', weight: 0, score: null, outOf: null }); })}><Icon name="plus" /> Add assessment</button>
-      </div>
-      <p className="hint">Leave "out of" blank to enter the mark as its contribution (e.g. 18.5 out of a 30% midterm).</p>
-      {st.warnings.map((w) => <p key={w} className="warn">{w}</p>)}
+          </div>
+          <button className="add-btn" onClick={() => edit((m) => { m.exempt = false; })}>Remove exemption</button>
+        </>
+      ) : (
+        <>
+          <div className="section-head"><h2>Assessments</h2><span className="muted small">score / out of</span></div>
+          <div className="card">
+            {draft.assessments.map((a, i) => {
+              const out = a.outOf ?? a.weight;
+              return (
+                <div key={a.id} className="assess">
+                  <input className="assess-name" value={a.name} placeholder="Assessment" onChange={(e) => edit((m) => { m.assessments[i].name = e.target.value; })} />
+                  <div className="assess-weight"><NumInput value={a.weight} onChange={(v) => edit((m) => { m.assessments[i].weight = v ?? 0; })} ariaLabel="Weight" /><span>%</span></div>
+                  <div className="assess-score">
+                    <NumInput value={a.score} onChange={(v) => edit((m) => { m.assessments[i].score = v; })} placeholder="–" ariaLabel="Score" />
+                    <span>/</span>
+                    <NumInput value={a.outOf} onChange={(v) => edit((m) => { m.assessments[i].outOf = v; })} placeholder={String(out || '')} ariaLabel="Out of" />
+                  </div>
+                  <button className="icon-btn subtle" aria-label="Remove assessment" onClick={() => edit((m) => { m.assessments.splice(i, 1); })}><Icon name="trash" /></button>
+                </div>
+              );
+            })}
+            <button className="add-inline" onClick={() => edit((m) => { m.assessments.push({ id: uid(), name: '', weight: 0, score: null, outOf: null }); })}><Icon name="plus" /> Add assessment</button>
+          </div>
+          <p className="hint">Leave "out of" blank to enter the mark as its contribution (e.g. 18.5 out of a 30% midterm).</p>
+          {st.warnings.map((w) => <p key={w} className="warn">{w}</p>)}
 
-      <div className="section-head"><h2>Target grade</h2></div>
-      <div className="card pad">
-        <LetterPicker value={mod.target} onChange={(l) => edit((m) => { m.target = l; })} />
-        {needText && <p className="need">{needText}</p>}
-      </div>
+          <div className="section-head"><h2>Target grade</h2></div>
+          <div className="card pad">
+            <LetterPicker value={draft.target} onChange={(l) => edit((m) => { m.target = l; })} />
+            {needText && <p className="need">{needText}</p>}
+          </div>
 
-      <div className="section-head"><h2>Transcript grade</h2></div>
-      <div className="card pad">
-        <p className="hint tight">Once results are out, pick the letter grade on your transcript. It replaces the prediction in your GPA.</p>
-        <LetterPicker value={mod.transcript} onChange={(l) => edit((m) => { m.transcript = l; })} />
-      </div>
+          <div className="section-head"><h2>Transcript grade</h2></div>
+          <div className="card pad">
+            <p className="hint tight">Once results are out, pick the letter grade on your transcript. It replaces the prediction in your GPA.</p>
+            <LetterPicker value={draft.transcript} onChange={(l) => edit((m) => { m.transcript = l; })} />
+          </div>
+        </>
+      )}
+
+      <SaveBar show={dirty} onSave={() => save()} onDiscard={reset} />
 
       <Sheet open={menu} onClose={() => setMenu(false)} title="Module settings">
-        <label className="field"><span>Credits</span><NumInput value={mod.credits} onChange={(v) => edit((m) => { m.credits = v ?? 0; })} /></label>
-        <div className="card"><Toggle on={mod.countsInGPA} onChange={(v) => edit((m) => { m.countsInGPA = v; })} label="Counts towards GPA" /></div>
-        <label className="field"><span>Move to semester</span>
-          <select className="text" value={sem.id} onChange={(e) => {
-            const to = e.target.value;
-            update((d) => {
-              const from = d.semesters.find((s) => s.id === sem.id)!; const dest = d.semesters.find((s) => s.id === to)!;
-              const idx = from.modules.findIndex((m) => m.id === mod.id);
-              dest.modules.push(...from.modules.splice(idx, 1));
-            });
-            setMenu(false); go(`#/s/${to}/m/${mod.id}`);
-          }}>
+        <label className="field"><span>Credits</span><NumInput value={draft.credits} onChange={(v) => edit((m) => { m.credits = v ?? 0; })} /></label>
+        <div className="card">
+          <Toggle on={!!draft.exempt} onChange={(v) => edit((m) => { m.exempt = v; })} label="Exempted (credit transfer)" />
+          {!draft.exempt && <Toggle on={draft.countsInGPA} onChange={(v) => edit((m) => { m.countsInGPA = v; })} label="Counts towards GPA" />}
+        </div>
+        <label className="field"><span>Semester</span>
+          <select className="text" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
             {data.semesters.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
+        <button className="primary" onClick={() => {
+          save(moveTo); guard.dirty = false; setMenu(false);
+          if (moveTo !== sem.id) go(`#/s/${moveTo}/m/${mod.id}`);
+        }}>Save</button>
         <button className="danger" onClick={() => {
           if (!confirm(`Delete ${mod.name}?`)) return;
+          guard.dirty = false;
           update((d) => { const s = d.semesters.find((x) => x.id === sem.id)!; s.modules = s.modules.filter((m) => m.id !== mod.id); });
-          back();
+          go(`#/s/${sem.id}`);
         }}>Delete module</button>
       </Sheet>
     </div>

@@ -1,15 +1,17 @@
 import { useRef, useState } from 'react';
 import type { AppData } from '../types';
-import { NumInput, Toggle } from '../ui';
-import { emptyData, normalise, type SyncState } from '../store';
+import { NumInput, SaveBar, Toggle } from '../ui';
+import { emptyData, normalise, useDraft, type SyncState } from '../store';
 import { pullFromSheet } from '../sync';
 import { SyncDot } from './Home';
 
 export function Settings({ data, update, replace, sync, syncNow }: {
   data: AppData; update: (fn: (d: AppData) => void) => void; replace: (d: AppData | null) => void; sync: SyncState; syncNow: () => void;
 }) {
-  const s = data.settings;
-  const set = <K extends keyof AppData['settings']>(k: K, v: AppData['settings'][K]) => update((d) => { d.settings[k] = v; });
+  const saved = data.settings;
+  const { draft: s, edit, dirty, reset } = useDraft(saved, 'settings');
+  const set = <K extends keyof AppData['settings']>(k: K, v: AppData['settings'][K]) => edit((d) => { d[k] = v; });
+  const save = () => update((d) => { d.settings = structuredClone(s); });
   const [msg, setMsg] = useState('');
   const file = useRef<HTMLInputElement>(null);
 
@@ -17,9 +19,9 @@ export function Settings({ data, update, replace, sync, syncNow }: {
     if (!confirm('Replace everything in the app with the copy saved in your Google Sheet?')) return;
     setMsg('Loading…');
     try {
-      const got = await pullFromSheet(s.sheetUrl, s.sheetKey);
+      const got = await pullFromSheet(saved.sheetUrl, saved.sheetKey);
       if (!got) { setMsg('The sheet has no saved data yet.'); return; }
-      const d = normalise(got); d.settings = { ...d.settings, sheetUrl: s.sheetUrl, sheetKey: s.sheetKey };
+      const d = normalise(got); d.settings = { ...d.settings, sheetUrl: saved.sheetUrl, sheetKey: saved.sheetKey };
       replace(d); setMsg('Restored from Google Sheet.');
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not reach the sheet.'); }
   };
@@ -34,7 +36,7 @@ export function Settings({ data, update, replace, sync, syncNow }: {
   const importJson = async (f: File) => {
     try {
       const d = normalise(JSON.parse(await f.text()));
-      d.settings = { ...d.settings, sheetUrl: s.sheetUrl || d.settings.sheetUrl, sheetKey: s.sheetKey };
+      d.settings = { ...d.settings, sheetUrl: saved.sheetUrl || d.settings.sheetUrl, sheetKey: saved.sheetKey };
       replace(d); setMsg(`Imported ${d.semesters.length} semesters.`);
     } catch { setMsg("That file couldn't be read."); }
   };
@@ -49,11 +51,12 @@ export function Settings({ data, update, replace, sync, syncNow }: {
           <input className="text" placeholder="https://script.google.com/macros/s/…/exec" value={s.sheetUrl} onChange={(e) => set('sheetUrl', e.target.value.trim())} /></label>
         <label className="field"><span>Sync password</span>
           <input className="text" type="password" placeholder="Same as SECRET in the script" value={s.sheetKey} onChange={(e) => set('sheetKey', e.target.value)} /></label>
-        <Toggle on={s.autoSync} onChange={(v) => set('autoSync', v)} label="Sync automatically after each change" />
+        <Toggle on={s.autoSync} onChange={(v) => set('autoSync', v)} label="Sync automatically when you save" />
         <div className="btn-row">
-          <button className="primary" disabled={!s.sheetUrl} onClick={syncNow}>Sync now</button>
-          <button className="secondary" disabled={!s.sheetUrl} onClick={restore}>Restore from Sheet</button>
+          <button className="primary" disabled={!saved.sheetUrl || dirty} onClick={syncNow}>Sync now</button>
+          <button className="secondary" disabled={!saved.sheetUrl || dirty} onClick={restore}>Restore from Sheet</button>
         </div>
+        {dirty && <p className="form-note">Save your changes before syncing.</p>}
         {sync.status === 'error' && <p className="warn">{sync.error}</p>}
         <details className="howto">
           <summary>How to link a sheet</summary>
@@ -84,6 +87,8 @@ export function Settings({ data, update, replace, sync, syncNow }: {
         <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
         <button className="danger" onClick={() => { if (confirm('Erase all grades on this device? Your Google Sheet is not touched.')) replace(emptyData()); }}>Erase all data</button>
       </div>
+      <p className="hint" style={{ textAlign: 'center', marginTop: 24 }}>Grade Tracker · version {__APP_VERSION__}</p>
+      <SaveBar show={dirty} onSave={save} onDiscard={reset} />
       {msg && <p className="toast" onAnimationEnd={() => setMsg('')}>{msg}</p>}
     </div>
   );

@@ -14,6 +14,7 @@ export interface Module {
   name: string;
   credits: number;
   countsInGPA: boolean;
+  exempt?: boolean;            // exempted through credit transfer – earns credits, no grade
   assessments: Assessment[];
   transcript: Letter | null;   // official letter grade once released
   target: Letter | null;
@@ -35,9 +36,22 @@ export interface Settings {
   creditsToGraduate: number | null;
 }
 
+export type Flexible = 'electives' | 'minor' | 'second-major';
+
+export interface Plan {
+  studentType: 'malaysian' | 'international' | null;
+  specialisation: string | null;
+  track: string | null;
+  extension: string | null;      // extension package name, or 'none'
+  flexible: Flexible | null;
+  minor: string | null;
+  secondMajor: string;
+}
+
 export interface AppData {
   version: 1;
   semesters: Semester[];
   settings: Settings;
+  plan: Plan;
   updatedAt: string;
 }

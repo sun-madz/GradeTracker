@@ -2,6 +2,8 @@
 // Source: university.taylors.edu.my programme page (checked Oct 2026). Information is subject to change.
 // Credit values are defaults (4 for most modules) – edit them in the app if your transcript differs.
 
+import type { Plan } from './types';
+
 export interface LibModule { name: string; group: string; credits: number }
 
 export const PROGRAMME = {
@@ -10,7 +12,7 @@ export const PROGRAMME = {
   duration: '3 years, full time',
   intakes: 'February, April, September',
   calendar:
-    "Each year has two long semesters plus a shorter one (the April term). Most students label them Sem 1, Short Sem and Sem 2.",
+    "Taylor's doesn't publish a semester count. The suggested plan uses two long semesters and one short semester per year, and you can rename or remove any of them.",
   source: 'https://university.taylors.edu.my/en/study/explore-all-programmes/computer-science/undergraduate/bachelor-of-computer-science.html',
 };
 
@@ -69,7 +71,55 @@ export const LIBRARY: LibModule[] = uniq([
 ]);
 
 // Suggested semester names for a 3-year plan
-export const SEMESTER_TEMPLATE = ['Y1 S1', 'Y1 Short', 'Y1 S2', 'Y2 S1', 'Y2 Short', 'Y2 S2', 'Y3 S1', 'Y3 Short', 'Y3 S2'];
+export const SEMESTER_TEMPLATE = [1, 2, 3].flatMap((y) => [`Year ${y} Semester 1`, `Year ${y} Short Semester`, `Year ${y} Semester 2`]);
+
+// Turns shorthand like "Y1S1", "y2 s2", "Y1 S.5" or "Y1 Short" into "Year 1 Semester 1" etc.
+export function tidySemesterName(raw: string): string {
+  const t = raw.trim().replace(/\s+/g, ' ');
+  const m = t.match(/^y(?:ear)?\s*(\d)\s*[,\-]?\s*(?:s(?:em(?:ester)?)?\s*)?(\.5|0?\.5|short(?: sem(?:ester)?)?|\d)$/i);
+  if (!m) return t;
+  const [, y, s] = m;
+  return /5|short/i.test(s) ? `Year ${y} Short Semester` : `Year ${y} Semester ${s}`;
+}
+
+export const TRACKS = YEARS[2].groups.map((g) => g.title);
+
+// Extension packages allowed for each specialisation (must differ from the specialisation)
+export const EXTENSIONS: Record<string, string[]> = {
+  'Data Science': ['Mobile Computing', 'Cyber Security', 'Internet Technologies', 'Artificial Intelligence', 'Digital Transformation'],
+  'Artificial Intelligence': ['Mobile Computing', 'Cyber Security', 'Internet Technologies', 'Business Intelligence and Analytics', 'Data Science'],
+  'Cyber Security': ['Data Science', 'Artificial Intelligence', 'Business Intelligence and Analytics', 'Mobile Computing', 'Digital Transformation'],
+  'Mobile Computing': ['Data Science', 'Artificial Intelligence', 'Business Intelligence and Analytics', 'Cyber Security', 'Digital Transformation'],
+};
+
+export const MINORS = ['Accounting', 'Advertising and Brand Management', 'Creative Media Design', 'Entrepreneurship', 'Finance',
+  'International Business', 'Management', 'Marketing'];
+
+export interface PlanGroup { title: string; modules: string[]; note?: string; slots?: number }
+
+// The modules a student needs, based on their choices.
+export function planGroups(p: Plan): PlanGroup[] {
+  const g: PlanGroup[] = [
+    { title: 'Year 1 core', modules: YEARS[0].groups[0].modules },
+    { title: 'Year 2 core', modules: YEARS[1].groups[0].modules },
+  ];
+  const spec = SPECIALISATIONS.find((s) => s.title === p.specialisation);
+  if (spec) g.push({ title: `Specialisation · ${spec.title}`, modules: spec.modules });
+  if (p.extension && p.extension !== 'none') {
+    const ext = SPECIALISATIONS.find((s) => s.title === p.extension);
+    const mods = ext ? ext.modules.filter((m) => !spec?.modules.includes(m)) : [];
+    g.push({ title: `Extension · ${p.extension}`, modules: mods,
+      note: ext ? undefined : "Taylor's website doesn't list this package's modules. Add them to your semesters as you take them." });
+  }
+  const track = YEARS[2].groups.find((t) => t.title === p.track);
+  if (track) g.push({ title: `Year 3 · ${track.title}`, modules: track.modules });
+  const uc = [...UNIVERSITY_CORE.all, ...(p.studentType === 'malaysian' ? UNIVERSITY_CORE.malaysian : p.studentType === 'international' ? UNIVERSITY_CORE.international : [])];
+  g.push({ title: 'University core', modules: uc, note: p.studentType ? undefined : 'Choose Malaysian or international in your plan to see the full list.' });
+  if (p.flexible === 'electives') g.push({ title: 'Free electives', modules: [], slots: 5, note: 'Choose five from Taylor\'s free electives.' });
+  if (p.flexible === 'minor') g.push({ title: `Minor · ${p.minor ?? 'not chosen'}`, modules: [], note: 'Add your minor modules to your semesters as you take them.' });
+  if (p.flexible === 'second-major') g.push({ title: `Second major${p.secondMajor ? ` · ${p.secondMajor}` : ''}`, modules: [], note: 'Add your second-major modules to your semesters as you take them.' });
+  return g;
+}
 
 // Starting assessment split for a new module (edit per module)
 export const DEFAULT_ASSESSMENTS = [

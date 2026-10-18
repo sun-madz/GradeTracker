@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AppData, Assessment, Module, Semester } from './types';
+import type { AppData, Assessment, Module, Plan, Semester } from './types';
 import { pushToSheet } from './sync';
-import { DEFAULT_ASSESSMENTS } from './taylors';
+import { DEFAULT_ASSESSMENTS, tidySemesterName } from './taylors';
 
 const KEY = 'grade-tracker-v1';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
+export const emptyPlan = (): Plan => ({ studentType: null, specialisation: null, track: null, extension: null, flexible: null, minor: null, secondMajor: '' });
+
 export const emptyData = (): AppData => ({
   version: 1,
   semesters: [],
   settings: { roundMarks: false, sheetUrl: '', sheetKey: '', autoSync: true, creditsToGraduate: null },
+  plan: emptyPlan(),
   updatedAt: new Date().toISOString(),
 });
 
-export function newModule(name: string, credits = 4, withDefaults = true): Module {
+export function newModule(name: string, credits = 4, withDefaults = true, exempt = false): Module {
   return {
-    id: uid(), name, credits, countsInGPA: true, transcript: null, target: null,
+    id: uid(), name, credits, countsInGPA: true, exempt, transcript: null, target: null,
     assessments: withDefaults ? DEFAULT_ASSESSMENTS.map((a) => ({ id: uid(), name: a.name, weight: a.weight, score: null, outOf: null })) : [],
   };
 }
@@ -30,11 +33,12 @@ export function normalise(raw: unknown): AppData {
   return {
     version: 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },
+    plan: { ...base.plan, ...(d.plan ?? {}) },
     updatedAt: d.updatedAt ?? base.updatedAt,
     semesters: (d.semesters ?? []).map((s) => ({
-      ...newSemester(s.name ?? 'Semester'), ...s, id: s.id ?? uid(),
+      ...newSemester(s.name ?? 'Semester'), ...s, id: s.id ?? uid(), name: tidySemesterName(s.name ?? 'Semester'),
       modules: (s.modules ?? []).map((m) => ({
-        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(),
+        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(), exempt: !!m.exempt,
         assessments: (m.assessments ?? []).map((a: Partial<Assessment>) => ({ id: uid(), name: '', weight: 0, score: null, outOf: null, ...a })),
       })),
     })),
@@ -101,4 +105,34 @@ export function useStore() {
   }, [syncNow]);
 
   return { data, update, replace, sync, syncNow };
+}
+
+// ---- Drafts: edits stay local until the user presses Save ----
+
+export const guard = { dirty: false };
+export const confirmLeave = () => !guard.dirty || confirm('You have unsaved changes. Leave without saving?');
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', (e) => { if (guard.dirty) e.preventDefault(); });
+}
+
+export function useDraft<T>(source: T, resetKey: string, guarded = true) {
+  const [draft, setDraft] = useState<T>(() => structuredClone(source));
+  const [key, setKey] = useState(resetKey);
+  const srcJson = JSON.stringify(source);
+  const [lastSrc, setLastSrc] = useState(srcJson);
+  if (key !== resetKey) { setKey(resetKey); setDraft(structuredClone(source)); setLastSrc(srcJson); }
+  else if (srcJson !== lastSrc) {
+    // Source changed elsewhere (e.g. restore). Follow it unless there are unsaved edits.
+    setLastSrc(srcJson);
+    if (JSON.stringify(draft) === lastSrc) setDraft(structuredClone(source));
+  }
+  const dirty = JSON.stringify(draft) !== srcJson;
+  useEffect(() => {
+    if (!guarded) return;
+    guard.dirty = dirty;
+    return () => { guard.dirty = false; };
+  }, [dirty, guarded]);
+  const edit = useCallback((fn: (d: T) => void) => setDraft((p) => { const n = structuredClone(p); fn(n); return n; }), []);
+  const reset = useCallback(() => setDraft(structuredClone(source)), [source]);
+  return { draft, edit, dirty, reset };
 }

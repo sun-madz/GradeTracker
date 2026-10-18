@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { Letter } from './types';
 import { gradeTone, LETTERS } from './grading';
 
-export function GradePill({ letter, confirmed, size = 'md' }: { letter: Letter | null; confirmed?: boolean; size?: 'md' | 'lg' }) {
+export function GradePill({ letter, confirmed, size = 'md', exempt }: { letter: Letter | null; confirmed?: boolean; size?: 'md' | 'lg'; exempt?: boolean }) {
+  if (exempt) return <span className={`pill tone-ex soft ${size}`} title="Exempted (credit transfer)">EX</span>;
   return (
     <span className={`pill tone-${gradeTone(letter)} ${confirmed ? 'solid' : 'soft'} ${size}`} title={confirmed ? 'From transcript' : 'Predicted'}>
       {letter ?? '–'}
@@ -101,4 +102,15 @@ export function Icon({ name }: { name: 'grades' | 'book' | 'gear' | 'plus' | 'mo
     case 'trash': return <svg {...p}><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>;
     case 'cloud': return <svg {...p}><path d="M17.5 19H7a5 5 0 1 1 1-9.9A6 6 0 0 1 19 11a4 4 0 0 1-1.5 8z" /></svg>;
   }
+}
+
+export function SaveBar({ show, onSave, onDiscard, label = 'Save changes' }: { show: boolean; onSave: () => void; onDiscard: () => void; label?: string }) {
+  if (!show) return null;
+  return (
+    <div className="savebar" role="region" aria-label="Unsaved changes">
+      <span className="savebar-text">Unsaved changes</span>
+      <button className="secondary" onClick={onDiscard}>Discard</button>
+      <button className="primary" onClick={onSave}>{label}</button>
+    </div>
+  );
 }
