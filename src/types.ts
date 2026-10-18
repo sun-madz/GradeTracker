@@ -39,6 +39,7 @@ export interface Settings {
   autoSync: boolean;
   creditsToGraduate: number | null;
   yearWeighting: boolean;       // Taylor's WGPA/WCGPA (20:30:50 by year level)
+  currentSemesterId?: string | null; // null = work it out automatically
 }
 
 export type Flexible = 'extension' | 'electives' | 'minor' | 'second-major';
@@ -53,6 +54,9 @@ export interface Plan {
   secondMajor: string;
   electives: string[];          // free electives you plan to take
   coreVersion?: 'current' | 'earlier'; // which university core list applies to your intake
+  intakeMonth?: 'February' | 'April' | 'September' | null;
+  intakeYear?: number | null;
+  extraSemesters?: number | null;  // semesters added by extending your studies
 }
 
 export interface AppData {

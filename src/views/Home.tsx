@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { AppData } from '../types';
-import { cumulative, fmt, gpaLabels } from '../grading';
-import { Chevron, Icon, Sheet } from '../ui';
+import { cumulative, currentSemester, fmt, gpaLabels, latest, moduleStats } from '../grading';
+import { Chevron, GradePill, Icon, Sheet } from '../ui';
 import { newSemester } from '../store';
-import { SEMESTER_TEMPLATE, tidySemesterName } from '../taylors';
+import { SEMESTER_TEMPLATE, semesterYear, tidySemesterName } from '../taylors';
 import type { SyncState } from '../store';
 
 export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (d: AppData) => void) => void; go: (h: string) => void; sync: SyncState }) {
@@ -15,10 +15,28 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
   const credits = (last?.cumCredits ?? 0) + exempt;
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const goal = data.settings.creditsToGraduate;
+  const round = data.settings.roundMarks;
+
+  const cur = currentSemester(data);
+  const curPred = cur ? latest(cumulative(data, cur.id)) : null;
+  const curRow = cur ? cumulative(data, cur.id).find((r) => r.semester.id === cur.id) : null;
 
   const used = new Set(data.semesters.map((s) => s.name));
   const suggestions = SEMESTER_TEMPLATE.filter((s) => !used.has(s));
+
+  // Group semesters by the year in their name.
+  const groups: { key: string; title: string; rows: typeof rows }[] = [];
+  for (const r of rows) {
+    const y = semesterYear(r.semester.name);
+    const key = y ? `y${y}` : 'other';
+    let g = groups.find((x) => x.key === key);
+    if (!g) { g = { key, title: y ? `Year ${y}` : 'Other', rows: [] }; groups.push(g); }
+    g.rows.push(r);
+  }
+  const allOpen = groups.length > 0 && groups.every((g) => open.has(g.key));
+  const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   const add = (n: string) => {
     if (!n.trim()) return;
@@ -30,12 +48,10 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
 
   return (
     <div className="page">
-      <div className="hero">
+      <div className="hero home-hero">
         <div className="hero-label">{L.cgpa} <SyncDot sync={sync} /></div>
         <div className="hero-value">{fmt(cgpa)}</div>
-        <div className="hero-sub">
-          {credits} credits{exempt ? ` (${exempt} exempted)` : ''} · confirmed grades only
-        </div>
+        <div className="hero-sub">{credits} credits{exempt ? ` (${exempt} exempted)` : ''} · confirmed grades only</div>
         {goal ? (
           <div className="progress" aria-label="Credits towards graduation">
             <div className="progress-bar"><span style={{ width: `${Math.min(100, (credits / goal) * 100)}%` }} /></div>
@@ -44,27 +60,81 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
         ) : null}
       </div>
 
-      <div className="section-head"><h2>Semesters</h2></div>
+      {cur ? (
+        <>
+          <button className="section-head link-head" onClick={() => go(`#/s/${cur.id}`)}>
+            <h2>This semester · {cur.name}</h2><Chevron />
+          </button>
+          {curRow && curRow.stats.status === 'predicted' && curRow.stats.gpa !== null && (
+            <div className="cur-pred">Predicted <b>{fmt(curRow.stats.gpa)}</b> {L.gpa} · <b>{fmt(curPred?.cgpa)}</b> {L.cgpa}</div>
+          )}
+          {cur.modules.length === 0 && <p className="empty">No modules yet. Open the semester to add them.</p>}
+          <div className="list">
+            {cur.modules.map((m) => {
+              const st = moduleStats(m, round);
+              return (
+                <button key={m.id} className="card row-card" onClick={() => go(`#/s/${cur.id}/m/${m.id}`)}>
+                  <div className="rc-main">
+                    <div className="rc-title">{m.name}</div>
+                    <div className="rc-sub">
+                      {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Target ${st.predicted}` : 'No marks yet'}`}
+                      {st.exempt && <span className="tag ex">Credit transfer</span>}
+                      {st.confirmed && <span className="tag ok">Transcript</span>}
+                    </div>
+                  </div>
+                  <GradePill letter={st.used} confirmed={st.confirmed} exempt={st.exempt} />
+                  <Chevron />
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : rows.length > 0 ? <p className="empty">All your semesters are confirmed. Pick a current semester in Settings.</p> : null}
+
+      <div className="section-head">
+        <h2>All semesters</h2>
+        {groups.length > 0 && <button className="link small" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.key)))}>{allOpen ? 'Collapse all' : 'Show all'}</button>}
+      </div>
       {rows.length === 0 && <p className="empty">No semesters yet. Add your first one below.</p>}
       <div className="list">
-        {rows.map((r) => (
-          <button key={r.semester.id} className="card row-card" onClick={() => go(`#/s/${r.semester.id}`)}>
-            <div className="rc-main">
-              <div className="rc-title">{r.semester.name}</div>
-              <div className="rc-sub">
-                {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {r.stats.credits + r.stats.exemptCredits} cr
-                {r.stats.status === 'final' && <span className="tag ok">Final</span>}
-                {r.stats.status === 'predicted' && <span className="tag">In progress</span>}
-                {r.official && <span className="tag ok">Official {L.cgpa}</span>}
-              </div>
+        {groups.map((g) => {
+          let wc = 0, wp = 0, cr = 0;
+          g.rows.forEach((r) => { wc += r.stats.wCredits; wp += r.stats.wPoints; cr += semCredits(r.semester); });
+          const done = g.rows.every((r) => r.stats.status === 'final' || r.stats.status === 'empty') && g.rows.some((r) => r.stats.status === 'final');
+          const hasCur = cur && g.rows.some((r) => r.semester.id === cur.id);
+          const isOpen = open.has(g.key);
+          return (
+            <div key={g.key} className={`card year ${isOpen ? 'open' : ''}`}>
+              <button className="row-card year-head" onClick={() => toggle(g.key)} aria-expanded={isOpen}>
+                <div className="rc-main">
+                  <div className="rc-title">{g.title}</div>
+                  <div className="rc-sub">
+                    {g.rows.length} semester{g.rows.length === 1 ? '' : 's'} · {cr} cr
+                    {hasCur && <span className="tag">Current</span>}
+                    {done && <span className="tag ok">Final</span>}
+                  </div>
+                </div>
+                <div className="rc-value"><div className="rc-num">{fmt(wc ? wp / wc : null)}</div><div className="rc-cap">{L.gpa}</div></div>
+                <span className={`caret ${isOpen ? 'up' : ''}`}><Chevron /></span>
+              </button>
+              {isOpen && g.rows.map((r) => (
+                <button key={r.semester.id} className="row-card sem-row" onClick={() => go(`#/s/${r.semester.id}`)}>
+                  <div className="rc-main">
+                    <div className="rc-title">{r.semester.name}</div>
+                    <div className="rc-sub">
+                      {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {semCredits(r.semester)} cr
+                      {r.stats.status === 'final' && <span className="tag ok">Final</span>}
+                      {r.stats.status === 'predicted' && <span className="tag">In progress</span>}
+                      {r.official && <span className="tag ok">Official {L.cgpa}</span>}
+                    </div>
+                  </div>
+                  <div className="rc-value"><div className="rc-num">{fmt(r.stats.gpa)}</div><div className="rc-cap">{L.gpa}</div></div>
+                  <Chevron />
+                </button>
+              ))}
             </div>
-            <div className="rc-value">
-              <div className="rc-num">{fmt(r.stats.gpa)}</div>
-              <div className="rc-cap">{L.gpa}</div>
-            </div>
-            <Chevron />
-          </button>
-        ))}
+          );
+        })}
       </div>
       <button className="add-btn" onClick={() => setAdding(true)}><Icon name="plus" /> Add semester</button>
 
@@ -74,11 +144,12 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
         </div>
         {suggestions.length > 0 && <div className="chips-wrap">{suggestions.slice(0, 6).map((s) => <button key={s} className={`chip ${name === s ? 'on' : ''}`} onClick={() => setName(s)}>{s}</button>)}</div>}
         {name.trim() && tidySemesterName(name) !== name.trim() && <p className="form-note">Will be saved as “{tidySemesterName(name)}”</p>}
-        <button className="primary" disabled={!name.trim()} onClick={() => add(name)}>Add semester</button>
       </Sheet>
     </div>
   );
 }
+
+const semCredits = (s: { modules: { credits: number }[] }) => s.modules.reduce((n, m) => n + (Number.isFinite(m.credits) ? m.credits : 0), 0);
 
 export function SyncDot({ sync }: { sync: SyncState }) {
   if (sync.status === 'off') return null;

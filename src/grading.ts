@@ -217,3 +217,13 @@ export function findRetake(d: AppData, id: string): { sem: Semester; mod: Module
   for (const sem of d.semesters) for (const mod of sem.modules) if (mod.retakeOf === id) return { sem, mod };
   return null;
 }
+
+// The semester you're in now: your choice in Settings, otherwise the first one that
+// isn't fully confirmed and has modules, otherwise the first one not yet final.
+export function currentSemester(d: AppData): Semester | null {
+  const chosen = d.settings.currentSemesterId ? d.semesters.find((s) => s.id === d.settings.currentSemesterId) : undefined;
+  if (chosen) return chosen;
+  const round = d.settings.roundMarks;
+  const open = d.semesters.filter((s) => semesterStats(s, round).status !== 'final');
+  return open.find((s) => s.modules.length) ?? open[0] ?? null;
+}

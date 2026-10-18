@@ -293,3 +293,27 @@ export function autoLevel(moduleName: string, semesterName: string, code?: strin
   if (n.length >= 8) for (const [k, v] of LEVELS) if (k.startsWith(n) || n.startsWith(k)) return v;
   return semesterYear(semesterName) ?? 1;
 }
+
+// ---- Intake and expected completion ----
+// Taylor's runs three intakes a year: February (short semester), April and September.
+// A 3-year programme is 9 semesters including the short ones (study guide: Sep 2025 → Apr 2028).
+export const INTAKE_MONTHS = ['February', 'April', 'September'] as const;
+const ENDS: Record<string, { month: string; nextYear: boolean }> = {
+  February: { month: 'April', nextYear: false }, April: { month: 'August', nextYear: false }, September: { month: 'January', nextYear: true },
+};
+export const PROGRAMME_SEMESTERS = 9;
+
+// The start month/year of the n-th semester (0 = intake semester).
+export function semesterStart(month: string, year: number, n: number): { month: string; year: number } {
+  let i = INTAKE_MONTHS.indexOf(month as typeof INTAKE_MONTHS[number]); let y = year;
+  for (let k = 0; k < n; k++) { i++; if (i === 3) { i = 0; y++; } }
+  return { month: INTAKE_MONTHS[i], year: y };
+}
+
+export function completion(p: Plan): { finalStart: string; endsAround: string; semesters: number } | null {
+  if (!p.intakeMonth || !p.intakeYear) return null;
+  const total = PROGRAMME_SEMESTERS + Math.max(0, p.extraSemesters ?? 0);
+  const last = semesterStart(p.intakeMonth, p.intakeYear, total - 1);
+  const end = ENDS[last.month];
+  return { finalStart: `${last.month} ${last.year}`, endsAround: `${end.month} ${last.year + (end.nextYear ? 1 : 0)}`, semesters: total };
+}

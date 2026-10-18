@@ -4,6 +4,7 @@ import { NumInput, SaveBar, Toggle } from '../ui';
 import { emptyData, newSemester, normalise, useDraft, type SyncState } from '../store';
 import { SEMESTER_TEMPLATE } from '../taylors';
 import { pullFromSheet } from '../sync';
+import { currentSemester } from '../grading';
 import { SyncDot } from './Home';
 
 export function Settings({ data, update, replace, sync, syncNow }: {
@@ -13,6 +14,7 @@ export function Settings({ data, update, replace, sync, syncNow }: {
   const { draft: s, edit, dirty, reset } = useDraft(saved, 'settings');
   const set = <K extends keyof AppData['settings']>(k: K, v: AppData['settings'][K]) => edit((d) => { d[k] = v; });
   const save = () => update((d) => { d.settings = structuredClone(s); });
+  const autoCur = currentSemester({ ...data, settings: { ...data.settings, currentSemesterId: null } });
   const [msg, setMsg] = useState('');
   const file = useRef<HTMLInputElement>(null);
 
@@ -90,6 +92,14 @@ export function Settings({ data, update, replace, sync, syncNow }: {
           <p className="hint">The sheet gets Overview, Modules and Assessments tabs, which are rewritten on every sync. A hidden tab keeps a full copy for restoring.</p>
         </details>
       </div>
+
+      <div className="section-head"><h2>Current semester</h2></div>
+      <label className="field" style={{ marginTop: 0 }}><span>Shown first on the Grades screen</span>
+        <select className="text" value={s.currentSemesterId ?? ''} onChange={(e) => set('currentSemesterId', e.target.value || null)}>
+          <option value="">Automatic{autoCur ? ` (${autoCur.name})` : ''}</option>
+          {data.semesters.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select></label>
+      <p className="hint">Automatic picks the first semester that isn't fully confirmed yet.</p>
 
       <div className="section-head"><h2>Grading</h2></div>
       <div className="card">

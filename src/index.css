@@ -302,3 +302,16 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .retake-card.fail b { color: var(--f); }
 .retake-card .primary, .retake-card .secondary { font-size: 15px; padding: 12px; }
 .dot.failed { background: var(--f); border-color: var(--f); }
+.home-hero { padding: 28px 0 18px; }
+.home-hero .hero-value { font-size: 56px; }
+.link-head { width: 100%; color: inherit; text-align: left; align-items: center; }
+.link-head svg { color: var(--muted); }
+.cur-pred { margin: -2px 4px 10px; font-size: 13px; color: var(--muted); }
+.cur-pred b { color: var(--c); font-variant-numeric: tabular-nums; }
+.year { overflow: hidden; }
+.year-head { border: 0; background: none; }
+.year .sem-row { border-top: 1px solid var(--line); padding-left: 24px; background: color-mix(in srgb, var(--bg) 40%, var(--card)); }
+.year .sem-row .rc-title { font-size: 15px; }
+.caret { display: grid; color: var(--muted); transform: rotate(90deg); transition: transform .2s; }
+.caret.up { transform: rotate(-90deg); }
+.accent-text { color: var(--a); }

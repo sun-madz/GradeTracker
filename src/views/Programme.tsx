@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
-import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, canonName, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
+import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, INTAKE_MONTHS, PROGRAMME_SEMESTERS, canonName, completion, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
 import { SCALE, isFail, moduleStats } from '../grading';
 import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
@@ -28,6 +28,8 @@ const CREDITS_PER_MODULE = 4;
 
 export function Programme({ data, update }: { data: AppData; update: (fn: (d: AppData) => void) => void }) {
   const [editing, setEditing] = useState(false);
+  const [editingIntake, setEditingIntake] = useState(false);
+  const done = completion(data.plan);
   const [view, setView] = useState<'remaining' | 'all'>('remaining');
   const [adding, setAdding] = useState<string | null>(null);
   const [pickingElectives, setPickingElectives] = useState(false);
@@ -101,8 +103,12 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       })}
       <p className="hint">A module counts as covered once it's in one of your semesters (done, taking or exempted). Tap + to add a remaining module to a semester.</p>
 
-      <div className="section-head"><h2>About the programme</h2></div>
+      <div className="section-head"><h2>About the programme</h2><button className="link small" onClick={() => setEditingIntake(true)}>{p.intakeMonth ? 'Edit intake' : 'Add intake'}</button></div>
       <div className="card facts">
+        <div><span>Your intake</span><b>{p.intakeMonth && p.intakeYear ? `${p.intakeMonth} ${p.intakeYear}` : 'Not set'}</b></div>
+        {done && <div><span>Final semester</span><b>{done.finalStart}</b></div>}
+        {done && <div><span>Expected completion</span><b className="accent-text">Around {done.endsAround}</b></div>}
+        {!!p.extraSemesters && <div><span>Extended by</span><b>{p.extraSemesters} semester{p.extraSemesters === 1 ? '' : 's'}</b></div>}
         <div><span>Duration</span><b>{PROGRAMME.duration}</b></div>
         <div><span>Intakes</span><b>{PROGRAMME.intakes}</b></div>
         <div><span>School</span><b>{PROGRAMME.school}</b></div>
@@ -157,6 +163,10 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         ))}
       </div>
       <p className="hint">WGPA / WCGPA = Σ(credits × year weight × grade points) ÷ Σ(credits × year weight), where Year 1 = 20%, Year 2 = 30% and Year 3 = 50% (bachelor's intakes from January 2021). Credit-transfer exemptions earn credits but carry no grade. Module lists are from Taylor's website and may change, so check with your faculty. <a href={PROGRAMME.source} target="_blank" rel="noreferrer">Source</a></p>
+
+      <Sheet open={editingIntake} onClose={() => setEditingIntake(false)} title="Intake">
+        <IntakeForm plan={p} onSave={(np) => { update((d) => { d.plan = { ...d.plan, ...np }; }); setEditingIntake(false); }} />
+      </Sheet>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title="My plan">
         <PlanForm plan={p} onSave={(np) => { update((d) => { d.plan = np; }); setEditing(false); }} />
@@ -267,6 +277,25 @@ function PlanForm({ plan, onSave }: { plan: Plan; onSave: (p: Plan) => void }) {
           labels={{ earlier: 'Study guide (EI, Social Innovation Project…)', current: 'Newer list (Youth and Leadership…)' }} onChange={(v) => edit((p) => { p.coreVersion = v; })} /></div>
 
       <button className="primary" disabled={!dirty} onClick={() => onSave(draft)}>Save plan</button>
+    </>
+  );
+}
+
+function IntakeForm({ plan, onSave }: { plan: Plan; onSave: (p: Pick<Plan, 'intakeMonth' | 'intakeYear' | 'extraSemesters'>) => void }) {
+  const [month, setMonth] = useState(plan.intakeMonth ?? null);
+  const [year, setYear] = useState<number | null>(plan.intakeYear ?? null);
+  const [extra, setExtra] = useState<number | null>(plan.extraSemesters ?? 0);
+  const preview = completion({ ...plan, intakeMonth: month, intakeYear: year, extraSemesters: extra });
+  const valid = !!month && !!year && year > 2000 && year < 2100;
+  return (
+    <>
+      <div className="form-block"><div className="form-label">Intake month</div>
+        <Choice options={[...INTAKE_MONTHS]} value={month} onChange={(v) => setMonth(v)} /></div>
+      <label className="field"><span>Intake year</span><NumInput value={year} onChange={setYear} placeholder="e.g. 2025" /></label>
+      <label className="field"><span>Extra semesters (if you extended your studies)</span><NumInput value={extra} onChange={setExtra} placeholder="0" /></label>
+      {preview && valid && <div className="check ok">Final semester {preview.finalStart} · expected to finish around <b>{preview.endsAround}</b> ({preview.semesters} semesters).</div>}
+      <p className="form-note">The programme is {PROGRAMME_SEMESTERS} semesters over 3 years, including short semesters (study guide: September 2025 intake → final semester April 2028).</p>
+      <button className="primary" disabled={!valid} onClick={() => onSave({ intakeMonth: month, intakeYear: year, extraSemesters: extra ?? 0 })}>Save intake</button>
     </>
   );
 }
