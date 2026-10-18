@@ -219,5 +219,10 @@ export function semesterYear(name: string): 1 | 2 | 3 | null {
 
 // Automatic level: the programme structure first, otherwise the year of the semester it's in.
 export function autoLevel(moduleName: string, semesterName: string): 1 | 2 | 3 {
-  return LEVELS.get(moduleName.trim().toLowerCase()) ?? semesterYear(semesterName) ?? 1;
+  const n = moduleName.trim().toLowerCase();
+  const exact = LEVELS.get(n);
+  if (exact) return exact;
+  // Close matches, e.g. "Statistical Inference" for "Statistical Inference and Modelling".
+  if (n.length >= 8) for (const [k, v] of LEVELS) if (k.startsWith(n) || n.startsWith(k)) return v;
+  return semesterYear(semesterName) ?? 1;
 }

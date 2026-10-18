@@ -45,7 +45,9 @@ export function TopBar({ title, back, right }: { title?: string; back?: () => vo
   );
 }
 
-export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export interface SheetAction { label: string; onClick: () => void; disabled?: boolean }
+
+export function Sheet({ open, onClose, title, children, action }: { open: boolean; onClose: () => void; title: string; children: ReactNode; action?: SheetAction }) {
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -57,7 +59,11 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <div className="sheet-head"><h3>{title}</h3><button className="link" onClick={onClose}>Done</button></div>
+        <div className="sheet-head">
+          <button className="link muted-link" onClick={onClose}>Cancel</button>
+          <h3>{title}</h3>
+          <span className="sheet-action">{action && <button className="link" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>}</span>
+        </div>
         <div className="sheet-body">{children}</div>
       </div>
     </div>

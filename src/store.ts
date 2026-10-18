@@ -38,7 +38,7 @@ export function normalise(raw: unknown): AppData {
     semesters: (d.semesters ?? []).map((s) => ({
       ...newSemester(s.name ?? 'Semester'), ...s, id: s.id ?? uid(), name: tidySemesterName(s.name ?? 'Semester'),
       modules: (s.modules ?? []).map((m) => ({
-        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(), exempt: !!m.exempt, code: m.code || codeFor(m.name ?? '') || '',
+        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(), exempt: !!m.exempt, code: m.code || codeFor(m.name ?? '') || '', target: m.target ?? m.expected ?? null, expected: null,
         assessments: (m.assessments ?? []).map((a: Partial<Assessment>) => ({ id: uid(), name: '', weight: 0, score: null, outOf: null, ...a })),
       })),
     })),

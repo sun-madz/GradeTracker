@@ -13,7 +13,6 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
   const cgpa = last?.cgpa ?? null;
   const exempt = rows.length ? rows[rows.length - 1].cumExempt : 0;
   const credits = (last?.cumCredits ?? 0) + exempt;
-  const anyPredicted = rows.some((r) => r.stats.status === 'predicted');
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const goal = data.settings.creditsToGraduate;
@@ -35,7 +34,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
         <div className="hero-label">{L.cgpa} <SyncDot sync={sync} /></div>
         <div className="hero-value">{fmt(cgpa)}</div>
         <div className="hero-sub">
-          {credits} credits{exempt ? ` (${exempt} exempted)` : ''}{anyPredicted ? ' · includes predictions' : cgpa !== null ? ' · confirmed' : ''}
+          {credits} credits{exempt ? ` (${exempt} exempted)` : ''} · confirmed grades only
         </div>
         {goal ? (
           <div className="progress" aria-label="Credits towards graduation">
@@ -55,7 +54,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
               <div className="rc-sub">
                 {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {r.stats.credits + r.stats.exemptCredits} cr
                 {r.stats.status === 'final' && <span className="tag ok">Final</span>}
-                {r.stats.status === 'predicted' && <span className="tag">Predicted</span>}
+                {r.stats.status === 'predicted' && <span className="tag">In progress</span>}
                 {r.official && <span className="tag ok">Official {L.cgpa}</span>}
               </div>
             </div>
@@ -69,7 +68,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
       </div>
       <button className="add-btn" onClick={() => setAdding(true)}><Icon name="plus" /> Add semester</button>
 
-      <Sheet open={adding} onClose={() => setAdding(false)} title="New semester">
+      <Sheet open={adding} onClose={() => setAdding(false)} title="New semester" action={{ label: 'Add', onClick: () => add(name), disabled: !name.trim() }}>
         <div className="field">
           <input className="text" autoFocus placeholder="e.g. Year 2 Semester 1" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(name)} />
         </div>

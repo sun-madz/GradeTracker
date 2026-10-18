@@ -1,19 +1,20 @@
 import type { AppData } from './types';
-import { cumulative, levelOf, moduleStats, isNum } from './grading';
+import { cumulative, levelOf, moduleStats, semesterStats, isNum } from './grading';
 
 // Builds the tables written to the Google Sheet. Values are computed here so the
 // Apps Script stays tiny and the sheet always matches what the app shows.
 export function sheetTables(d: AppData) {
   const round = d.settings.roundMarks;
-  const overview: (string | number)[][] = [['Semester', 'Credits (graded)', 'Exempted credits', d.settings.yearWeighting !== false ? 'WGPA' : 'GPA', 'Status', 'Confirmed', 'Cumulative credits', d.settings.yearWeighting !== false ? 'WCGPA' : 'CGPA', 'Basis']];
+  const overview: (string | number)[][] = [['Semester', 'Credits (confirmed)', 'Exempted credits', d.settings.yearWeighting !== false ? 'WGPA' : 'GPA', 'Predicted ' + (d.settings.yearWeighting !== false ? 'WGPA' : 'GPA'), 'Status', 'Confirmed', 'Cumulative credits', d.settings.yearWeighting !== false ? 'WCGPA' : 'CGPA', 'Basis']];
   const modules: (string | number)[][] = [['Semester', 'Code', 'Module', 'Credits', 'Year level', 'Counts in GPA', 'Weight assessed %', 'Projected %', 'Predicted', 'Transcript', 'Grade used', 'Points', 'Status']];
   const assessments: (string | number)[][] = [['Semester', 'Module', 'Assessment', 'Weight %', 'Score', 'Out of', 'Contribution']];
   const r2 = (n: number | null) => (isNum(n) ? Number(n.toFixed(2)) : '');
 
   for (const row of cumulative(d)) {
     const s = row.semester;
-    overview.push([s.name, row.stats.credits, row.stats.exemptCredits, r2(row.stats.gpa), row.stats.status, `${row.stats.confirmed}/${row.stats.modules - row.stats.exempt}`,
-      row.cumCredits, r2(row.cgpa), row.official ? 'Official (transcript)' : row.stats.status === 'empty' ? 'Carried forward' : row.stats.status === 'final' ? 'Transcript grades' : 'Includes predictions']);
+    const pred = semesterStats(s, round, d.settings.yearWeighting !== false, true);
+    overview.push([s.name, row.stats.credits, row.stats.exemptCredits, r2(row.stats.gpa), row.stats.status === 'predicted' ? r2(pred.gpa) : '', row.stats.status, `${row.stats.confirmed}/${row.stats.modules - row.stats.exempt}`,
+      row.cumCredits, r2(row.cgpa), row.official ? 'Official (transcript)' : row.stats.status === 'empty' ? 'Carried forward' : 'Confirmed grades only']);
     for (const m of s.modules) {
       const st = moduleStats(m, round);
       modules.push([s.name, m.code ?? '', m.name, m.credits, st.exempt ? '' : levelOf(m, s), st.exempt ? 'No (exempted)' : m.countsInGPA ? 'Yes' : 'No', st.exempt ? '' : r2(st.weightAssessed), r2(st.projected), st.predicted ?? '',

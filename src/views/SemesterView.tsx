@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Semester } from '../types';
-import { cumulative, fmt, gpaLabels, levelOf, moduleStats } from '../grading';
+import { cumulative, fmt, gpaLabels, latest, levelOf, moduleStats } from '../grading';
 import { Chevron, GradePill, Icon, NumInput, Sheet, Toggle, TopBar } from '../ui';
 import { newModule, useDraft } from '../store';
 import { LIBRARY, planGroups, semesterYear, tidySemesterName } from '../taylors';
 
 export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Semester; update: (fn: (d: AppData) => void) => void; go: (h: string) => void }) {
   const round = data.settings.roundMarks;
-  const rows = cumulative(data);
+  const rows = cumulative(data);                // confirmed grades only
+  const predRows = cumulative(data, sem.id);     // + this semester's predictions
   const idx = rows.findIndex((r) => r.semester.id === sem.id);
   const row = rows[idx];
-  // "Now" = where you stand before this semester: the last earlier semester with a result.
-  const before = rows.slice(0, idx).reverse().find((r) => r.cgpa !== null);
-  const lastSem = rows.slice(0, idx).reverse().find((r) => r.stats.gpa !== null);
+  const predRow = predRows[idx];
+  const current = latest(rows);
+  const predicted = latest(predRows);
+  // Current WGPA = the most recent semester whose grades are all confirmed.
+  const lastFinal = [...rows].reverse().find((r) => r.stats.status === 'final' && r.stats.gpa !== null);
   const L = gpaLabels(data);
   const weighted = data.settings.yearWeighting !== false;
   const semYear = semesterYear(sem.name);
@@ -47,8 +50,8 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
       <div className="hero compact">
         {row.stats.status === 'predicted' ? (
           <div className="duo">
-            <Stat label="Current" big={before?.cgpa} bigCap={L.cgpa} small={lastSem?.stats.gpa} smallCap={L.gpa} />
-            <Stat label="Predicted" accent big={row.stats.gpa === null ? before?.cgpa : row.cgpa} bigCap={L.cgpa} small={row.stats.gpa} smallCap={L.gpa} />
+            <Stat label="Current" big={current?.cgpa} bigCap={L.cgpa} small={lastFinal?.stats.gpa} smallCap={L.gpa} />
+            <Stat label="Predicted" accent big={predicted?.cgpa} bigCap={L.cgpa} small={predRow.stats.gpa} smallCap={L.gpa} />
           </div>
         ) : (
           <div className="duo">
@@ -57,8 +60,8 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
           </div>
         )}
         <div className="hero-sub">
-          {row.stats.credits + exemptCr} cr · {row.stats.confirmed} of {row.stats.modules - row.stats.exempt} confirmed
-          {row.stats.status === 'predicted' && row.stats.gpa === null && <><br />Pick expected grades to see a prediction</>}
+          {predRow.stats.credits + exemptCr} cr · {row.stats.confirmed} of {row.stats.modules - row.stats.exempt} confirmed
+          {row.stats.status === 'predicted' && predRow.stats.gpa === null && <><br />Set target grades to see a prediction</>}
         </div>
       </div>
 
@@ -72,7 +75,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
               <div className="rc-main">
                 <div className="rc-title">{m.name}</div>
                 <div className="rc-sub">
-                  {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Expected ${st.predicted}` : 'No marks yet'}`}
+                  {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Target ${st.predicted}` : 'No marks yet'}`}
                   {st.exempt && <span className="tag ex">Credit transfer</span>}
                   {weighted && !st.exempt && levelOf(m, sem) !== semYear && <span className="tag">Year {levelOf(m, sem)} module</span>}
                   {!st.exempt && !m.countsInGPA && <span className="tag">Not in GPA</span>}
@@ -87,7 +90,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
       </div>
       <button className="add-btn" onClick={() => setAdding(true)}><Icon name="plus" /> Add module</button>
 
-      <Sheet open={adding} onClose={closeAdd} title={picked ? 'New module' : 'Add module'}>
+      <Sheet open={adding} onClose={closeAdd} title={picked ? 'New module' : 'Add module'} action={picked ? { label: 'Add', onClick: submitModule, disabled: !picked.name.trim() } : undefined}>
         {picked ? (
           <>
             <label className="field"><span>Module name</span>

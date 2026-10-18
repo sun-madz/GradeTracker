@@ -22,6 +22,10 @@ export function ModuleView({ data, sem, mod, update, go }: {
       else { from.modules.splice(idx, 1); d.semesters.find((s) => s.id === targetSem)!.modules.push(structuredClone(draft)); }
     });
   };
+  const saveSettings = () => {
+    save(moveTo); guard.dirty = false; setMenu(false);
+    if (moveTo !== sem.id) go(`#/s/${moveTo}/m/${mod.id}`);
+  };
   const back = () => { if (confirmLeave()) { guard.dirty = false; go(`#/s/${sem.id}`); } };
 
   const needText = (() => {
@@ -51,7 +55,7 @@ export function ModuleView({ data, sem, mod, update, go }: {
             <div className="muted small">
               {st.exempt ? 'Exempted · credit transfer'
                 : st.confirmed ? `Transcript grade${st.predicted && st.predicted !== draft.transcript ? ` · predicted ${st.predicted}` : st.predicted ? ' · matches prediction' : ''}`
-                : st.fromExpected ? 'Expected grade · no marks yet' : st.projected === null ? 'Enter marks or an expected grade'
+                : st.fromExpected ? 'Target grade · no marks yet' : st.projected === null ? 'Set a target grade or enter marks'
                 : st.complete ? 'Predicted · all marks in' : `Projected at your current pace · ${fmt(st.secured, 1)} marks banked`}
             </div>
           </div>
@@ -98,20 +102,12 @@ export function ModuleView({ data, sem, mod, update, go }: {
           <p className="hint">Leave "out of" blank to enter the mark as its contribution (e.g. 18.5 out of a 30% midterm).</p>
           {st.warnings.map((w) => <p key={w} className="warn">{w}</p>)}
 
-          {!draft.transcript && (
-            <>
-              <div className="section-head"><h2>Expected grade</h2></div>
-              <div className="card pad">
-                <p className="hint tight">No marks yet? Pick the grade you expect. It's used for your predicted {data.settings.yearWeighting !== false ? 'WGPA and WCGPA' : 'GPA and CGPA'} until you enter marks.</p>
-                <LetterPicker value={draft.expected ?? null} onChange={(l) => edit((m) => { m.expected = l; })} />
-                {st.projected !== null && draft.expected && <p className="form-note">You've entered marks, so the prediction now uses them ({st.predicted}) instead.</p>}
-              </div>
-            </>
-          )}
-
           <div className="section-head"><h2>Target grade</h2></div>
           <div className="card pad">
-            <LetterPicker value={draft.target} onChange={(l) => edit((m) => { m.target = l; })} />
+            <p className="hint tight">{st.projected === null
+              ? `The grade you're aiming for. Until you enter marks, it's used for your predicted ${data.settings.yearWeighting !== false ? 'WGPA and WCGPA' : 'GPA and CGPA'}.`
+              : "The grade you're aiming for. Your prediction now comes from your marks."}</p>
+            <LetterPicker value={draft.target} onChange={(l) => edit((m) => { m.target = l; m.expected = null; })} />
             {needText && <p className="need">{needText}</p>}
           </div>
 
@@ -125,7 +121,7 @@ export function ModuleView({ data, sem, mod, update, go }: {
 
       <SaveBar show={dirty} onSave={() => save()} onDiscard={reset} />
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title="Module settings">
+      <Sheet open={menu} onClose={() => setMenu(false)} title="Module settings" action={{ label: 'Save', onClick: saveSettings }}>
         <label className="field"><span>Credits</span><NumInput value={draft.credits} onChange={(v) => edit((m) => { m.credits = v ?? 0; })} /></label>
         <div className="card">
           <Toggle on={!!draft.exempt} onChange={(v) => edit((m) => { m.exempt = v; })} label="Exempted (credit transfer)" />
@@ -148,10 +144,7 @@ export function ModuleView({ data, sem, mod, update, go }: {
             {data.semesters.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
-        <button className="primary" onClick={() => {
-          save(moveTo); guard.dirty = false; setMenu(false);
-          if (moveTo !== sem.id) go(`#/s/${moveTo}/m/${mod.id}`);
-        }}>Save</button>
+        <button className="primary" onClick={saveSettings}>Save</button>
         <button className="danger" onClick={() => {
           if (!confirm(`Delete ${mod.name}?`)) return;
           guard.dirty = false;

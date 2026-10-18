@@ -282,3 +282,8 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .stat-small b { display: block; font-size: 20px; color: var(--ink); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .stat.accent .stat-label, .stat.accent .stat-big, .stat.accent .stat-small b { color: var(--c); }
 .hero.compact .hero-sub { margin-top: 14px; line-height: 1.5; }
+.sheet-head { display: grid; grid-template-columns: 70px 1fr 70px; align-items: center; }
+.sheet-head h3 { text-align: center; }
+.sheet-action { text-align: right; }
+.muted-link { color: var(--muted); font-weight: 500; text-align: left; }
+.link:disabled { opacity: .35; }

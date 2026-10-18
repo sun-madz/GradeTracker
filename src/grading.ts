@@ -63,8 +63,9 @@ export function moduleStats(m: Module, round: boolean): ModuleStats {
   if (m.assessments.length && Math.abs(totalWeight - 100) > 0.01) warnings.push(`Weights add up to ${+totalWeight.toFixed(2)}%, not 100%`);
   const projected = weightAssessed > 0 ? (secured / weightAssessed) * 100 : null;
   const complete = totalWeight > 0 && weightAssessed >= totalWeight;
-  const fromExpected = projected === null && !!m.expected;
-  const predicted = projected === null ? (m.expected ?? null) : letterFor(projected, round);
+  const goal = m.target ?? m.expected ?? null;   // target grade doubles as the prediction until marks exist
+  const fromExpected = projected === null && !!goal;
+  const predicted = projected === null ? goal : letterFor(projected, round);
   const used = m.transcript ?? predicted;
   const points = used ? pointsOf(used) : null;
 
@@ -95,12 +96,14 @@ export interface SemesterStats {
   status: 'empty' | 'predicted' | 'final';
 }
 
-export function semesterStats(s: Semester, round: boolean, weighted = true): SemesterStats {
+// includePredicted = false → only transcript (confirmed) grades count.
+export function semesterStats(s: Semester, round: boolean, weighted = true, includePredicted = true): SemesterStats {
   let qp = 0, credits = 0, wc = 0, confirmed = 0, exempt = 0, exemptCredits = 0;
   for (const m of s.modules) {
     const st = moduleStats(m, round);
     if (st.confirmed) confirmed++;
     if (st.exempt) { exempt++; exemptCredits += isNum(m.credits) ? m.credits : 0; continue; }
+    if (!includePredicted && !st.confirmed) continue;
     if (m.countsInGPA && st.points !== null && isNum(m.credits)) {
       const w = m.credits * (weighted ? YEAR_WEIGHT[levelOf(m, s)] : 1);
       qp += st.points * w; wc += w; credits += m.credits;
@@ -115,13 +118,15 @@ export function semesterStats(s: Semester, round: boolean, weighted = true): Sem
 
 export interface CumulativeRow { semester: Semester; stats: SemesterStats; cumCredits: number; cumExempt: number; cgpa: number | null; official: boolean }
 
-export function cumulative(d: AppData): CumulativeRow[] {
+// Confirmed transcript grades only, everywhere. Pass predictFor (a semester id) to also count
+// that one semester's predicted grades – used only on that semester's screen.
+export function cumulative(d: AppData, predictFor?: string): CumulativeRow[] {
   const round = d.settings.roundMarks;
   const weighted = d.settings.yearWeighting !== false;
   // Running totals: plain credits for display, weighted credits/points for the (W)CGPA.
   let cc = 0, ce = 0, wc = 0, wp = 0, cg: number | null = null;
   return d.semesters.map((s) => {
-    const stats = semesterStats(s, round, weighted);
+    const stats = semesterStats(s, round, weighted, s.id === predictFor);
     ce += stats.exemptCredits;
     cc += stats.credits; wc += stats.wCredits; wp += stats.wPoints;
     const official = isNum(s.officialCGPA);
@@ -149,3 +154,6 @@ export function gradeTone(l: Letter | null): string {
 export const fmt = (n: number | null | undefined, dp = 2) => (isNum(n) ? n.toFixed(dp) : '—');
 
 export const gpaLabels = (d: AppData) => (d.settings.yearWeighting !== false ? { gpa: 'WGPA', cgpa: 'WCGPA' } : { gpa: 'GPA', cgpa: 'CGPA' });
+
+// Latest standing across all semesters (the last running value).
+export const latest = (rows: CumulativeRow[]) => [...rows].reverse().find((r) => r.cgpa !== null) ?? null;
