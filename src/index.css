@@ -295,3 +295,10 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .tcheck { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
 .tcheck.ok { color: var(--a); background: var(--a-soft); }
 .tcheck.off { color: var(--c); background: var(--c-soft); }
+
+.tag.fail { background: var(--f-soft); color: var(--f); }
+.retake-card { margin-top: 12px; }
+.retake-card p { color: var(--muted); font-size: 14px; line-height: 1.45; margin: 6px 0 12px; }
+.retake-card.fail b { color: var(--f); }
+.retake-card .primary, .retake-card .secondary { font-size: 15px; padding: 12px; }
+.dot.failed { background: var(--f); border-color: var(--f); }

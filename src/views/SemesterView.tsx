@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Semester } from '../types';
-import { cumulative, fitLevels, fmt, gpaLabels, latest, levelOf, moduleStats } from '../grading';
+import { cumulative, fitLevels, fmt, gpaLabels, isFail, latest, levelOf, moduleStats, supersededIds } from '../grading';
 import { Chevron, GradePill, Icon, NumInput, Sheet, Toggle, TopBar } from '../ui';
 import { newModule, useDraft } from '../store';
 import { LIBRARY, canonName, creditsFor, planGroups, semesterYear, tidySemesterName } from '../taylors';
 
 export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Semester; update: (fn: (d: AppData) => void) => void; go: (h: string) => void }) {
   const round = data.settings.roundMarks;
+  const replaced = supersededIds(data);
   const rows = cumulative(data);                // confirmed grades only
   const predRows = cumulative(data, sem.id);     // + this semester's predictions
   const idx = rows.findIndex((r) => r.semester.id === sem.id);
@@ -82,6 +83,8 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
                 <div className="rc-sub">
                   {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Target ${st.predicted}` : 'No marks yet'}`}
                   {st.exempt && <span className="tag ex">Credit transfer</span>}
+                  {m.retakeOf && <span className="tag">Retake</span>}
+                  {replaced.has(m.id) ? <span className="tag ok">Replaced by retake</span> : isFail(m.transcript) ? <span className="tag fail">Retake needed</span> : null}
                   {weighted && !st.exempt && levelOf(m, sem) !== semYear && <span className="tag">Year {levelOf(m, sem)} module</span>}
                   {!st.exempt && !m.countsInGPA && <span className="tag">Not in GPA</span>}
                   {st.confirmed ? <span className="tag ok">Transcript</span> : !st.exempt && st.projected !== null && !st.complete ? <span className="tag">In progress</span> : null}

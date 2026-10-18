@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
 import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, canonName, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
-import { SCALE, moduleStats } from '../grading';
+import { SCALE, isFail, moduleStats } from '../grading';
 import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
 import { newModule, useDraft } from '../store';
 
-type Status = { kind: 'exempt' | 'done' | 'progress' | 'planned'; label: string; sem: string; grade?: ReturnType<typeof moduleStats>['used']; confirmed?: boolean };
+type Status = { kind: 'exempt' | 'done' | 'progress' | 'planned' | 'failed'; label: string; sem: string; grade?: ReturnType<typeof moduleStats>['used']; confirmed?: boolean };
 
 function statusMap(d: AppData) {
   const map = new Map<string, Status>();
@@ -14,6 +14,7 @@ function statusMap(d: AppData) {
     const st = moduleStats(m, d.settings.roundMarks);
     const k = canonName(m.name, m.code);
     const v: Status = st.exempt ? { kind: 'exempt', label: 'Exempted', sem: s.name }
+      : st.confirmed && isFail(st.used) ? { kind: 'failed', label: 'Failed · retake needed', sem: s.name, grade: st.used, confirmed: true }
       : st.confirmed ? { kind: 'done', label: 'Done', sem: s.name, grade: st.used, confirmed: true }
       : st.projected !== null ? { kind: 'progress', label: st.complete ? 'Awaiting result' : 'In progress', sem: s.name, grade: st.used }
       : { kind: 'planned', label: 'Taking', sem: s.name };
@@ -33,7 +34,7 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
   const p = data.plan;
   const status = useMemo(() => statusMap(data), [data]);
   const groups = useMemo(() => planGroups(p), [p]);
-  const prog = useMemo(() => progress(groups, new Set(status.keys()), p.electives ?? []), [groups, status, p.electives]);
+  const prog = useMemo(() => progress(groups, new Set([...status].filter(([, v]) => v.kind !== 'failed').map(([k]) => k)), p.electives ?? []), [groups, status, p.electives]);
   const hasPlan = !!(p.specialisation || p.track || p.flexible || p.studentType);
   const left = prog.reduce((n, g) => n + g.needed, 0);
   const total = prog.reduce((n, g) => n + g.total, 0);

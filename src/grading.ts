@@ -18,6 +18,8 @@ export const SCALE: { letter: Letter; min: number; max: number; points: number; 
 export const LETTERS = SCALE.map((s) => s.letter);
 
 export const pointsOf = (l: Letter) => SCALE.find((s) => s.letter === l)!.points;
+// C is the lowest pass at Taylor's; D+, D, D- and F are fails.
+export const isFail = (l: Letter | null | undefined) => !!l && pointsOf(l) < 2;
 export const minOf = (l: Letter) => SCALE.find((s) => s.letter === l)!.min;
 
 export function letterFor(mark: number, round: boolean): Letter {
@@ -125,10 +127,26 @@ export function cumulative(d: AppData, predictFor?: string): CumulativeRow[] {
   const weighted = d.settings.yearWeighting !== false;
   // Running totals: plain credits for display, weighted credits/points for the (W)CGPA.
   let cc = 0, ce = 0, wc = 0, wp = 0, cg: number | null = null;
+  const replaced = supersededIds(d, predictFor);
+  // Where each failed attempt was counted, so a retake can take it back out from its own semester onwards.
+  const counted = new Map<string, { c: number; w: number; p: number }>();
   return d.semesters.map((s) => {
-    const stats = semesterStats(s, round, weighted, s.id === predictFor);
+    const stats = semesterStats(s, round, weighted, s.id === predictFor);            // the semester's own WGPA
     ce += stats.exemptCredits;
     cc += stats.credits; wc += stats.wCredits; wp += stats.wPoints;
+    for (const m of s.modules) {
+      if (replaced.has(m.id)) {
+        const st = moduleStats(m, round);
+        if (st.points !== null && m.countsInGPA && isNum(m.credits)) {
+          const w = m.credits * (weighted ? YEAR_WEIGHT[levelOf(m, s)] : 1);
+          counted.set(m.id, { c: m.credits, w, p: st.points * w });
+        }
+      }
+      if (m.retakeOf && replaced.has(m.retakeOf) && counted.has(m.retakeOf)) {
+        const o = counted.get(m.retakeOf)!;   // the retake now counts instead of the fail
+        cc -= o.c; wc -= o.w; wp -= o.p; counted.delete(m.retakeOf);
+      }
+    }
     const official = isNum(s.officialCGPA);
     if (official) {
       // Anchor to the transcript: keep the weighted credits, rescale the points to match.
@@ -181,4 +199,21 @@ export function fitLevels(s: Semester, round: boolean, target: number): LevelFit
   }
   if (!best) return null;
   return { value: best.v, changes: mods.map(({ m }, i) => ({ id: m.id, name: m.name, from: cur[i], to: best!.lv[i] })).filter((c) => c.from !== c.to) };
+}
+
+// Failed attempts that a retake replaces in the running WCGPA: the retake has a transcript grade,
+// or (on that semester's own screen) a predicted grade.
+export function supersededIds(d: AppData, predictFor?: string): Set<string> {
+  const out = new Set<string>();
+  for (const s of d.semesters) for (const m of s.modules) {
+    if (!m.retakeOf) continue;
+    const st = moduleStats(m, d.settings.roundMarks);
+    if (st.confirmed || (s.id === predictFor && st.points !== null)) out.add(m.retakeOf);
+  }
+  return out;
+}
+
+export function findRetake(d: AppData, id: string): { sem: Semester; mod: Module } | null {
+  for (const sem of d.semesters) for (const mod of sem.modules) if (mod.retakeOf === id) return { sem, mod };
+  return null;
 }

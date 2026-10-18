@@ -19,7 +19,8 @@ export interface Module {
   assessments: Assessment[];
   transcript: Letter | null;   // official letter grade once released
   target: Letter | null;
-  expected?: Letter | null;    // your own predicted grade, used when there are no marks yet
+  expected?: Letter | null;
+  retakeOf?: string | null;    // id of the failed attempt this module retakes    // your own predicted grade, used when there are no marks yet
 }
 
 export interface Semester {

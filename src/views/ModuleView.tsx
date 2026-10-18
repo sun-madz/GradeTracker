@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { AppData, Module, Semester } from '../types';
-import { fmt, levelOf, moduleStats } from '../grading';
+import { findRetake, fmt, isFail, levelOf, moduleStats } from '../grading';
 import { YEAR_WEIGHT, autoLevel } from '../taylors';
 import { GradePill, Icon, LetterPicker, NumInput, SaveBar, Sheet, Toggle, TopBar } from '../ui';
-import { confirmLeave, guard, uid, useDraft } from '../store';
+import { confirmLeave, guard, newModule, uid, useDraft } from '../store';
 
 export function ModuleView({ data, sem, mod, update, go }: {
   data: AppData; sem: Semester; mod: Module; update: (fn: (d: AppData) => void) => void; go: (h: string) => void;
@@ -11,6 +11,18 @@ export function ModuleView({ data, sem, mod, update, go }: {
   const { draft, edit, dirty, reset } = useDraft(mod, mod.id);
   const st = moduleStats(draft, data.settings.roundMarks);
   const [menu, setMenu] = useState(false);
+  const [retaking, setRetaking] = useState(false);
+  const laterSems = data.semesters.slice(data.semesters.findIndex((s) => s.id === sem.id) + 1);
+  const [retakeSem, setRetakeSem] = useState(laterSems[0]?.id ?? '');
+  const retake = findRetake(data, mod.id);
+  const original = mod.retakeOf ? data.semesters.flatMap((s) => s.modules.map((m) => ({ s, m }))).find((x) => x.m.id === mod.retakeOf) : undefined;
+  const addRetake = () => {
+    if (!retakeSem) return;
+    const m = { ...newModule(mod.name, mod.credits, true, false, mod.code), yearLevel: mod.yearLevel ?? null, retakeOf: mod.id };
+    update((d) => { d.semesters.find((s) => s.id === retakeSem)?.modules.push(m); });
+    setRetaking(false);
+    go(`#/s/${retakeSem}/m/${m.id}`);
+  };
   const [moveTo, setMoveTo] = useState(sem.id);
 
   const save = (targetSem = sem.id) => {
@@ -116,8 +128,37 @@ export function ModuleView({ data, sem, mod, update, go }: {
             <p className="hint tight">Once results are out, pick the letter grade on your transcript. It replaces the prediction in your GPA.</p>
             <LetterPicker value={draft.transcript} onChange={(l) => edit((m) => { m.transcript = l; })} />
           </div>
+
+          {original && (
+            <div className="card pad retake-card">
+              <b>Retake of {original.m.name}</b>
+              <p>Failed in {original.s.name} ({original.m.transcript}). Once this attempt has a transcript grade, it replaces that grade in your WCGPA.</p>
+            </div>
+          )}
+          {isFail(mod.transcript) && (
+            <div className="card pad retake-card fail">
+              {retake ? (<>
+                <b>Retaken in {retake.sem.name}</b>
+                <p>{retake.mod.transcript ? `The retake's ${retake.mod.transcript} replaces this ${mod.transcript} in your WCGPA.` : "When the retake's transcript grade is in, it replaces this grade in your WCGPA."} This semester's WGPA stays as on your transcript.</p>
+                <button className="secondary" onClick={() => go(`#/s/${retake.sem.id}/m/${retake.mod.id}`)}>Open the retake</button>
+              </>) : (<>
+                <b>{mod.transcript} is a fail grade</b>
+                <p>Add a retake to a later semester. Once the retake has a transcript grade, it replaces this one in your WCGPA.</p>
+                <button className="primary" onClick={() => { setRetakeSem(laterSems[0]?.id ?? data.semesters[0].id); setRetaking(true); }}>Add retake</button>
+              </>)}
+            </div>
+          )}
         </>
       )}
+
+      <Sheet open={retaking} onClose={() => setRetaking(false)} title="Retake module" action={{ label: 'Add', onClick: addRetake, disabled: !retakeSem }}>
+        <p className="add-to-name">{mod.name}{mod.code ? ` · ${mod.code}` : ''}</p>
+        <label className="field"><span>Semester</span>
+          <select className="text" value={retakeSem} onChange={(e) => setRetakeSem(e.target.value)}>
+            {(laterSems.length ? laterSems : data.semesters).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select></label>
+        <p className="form-note">Same credits and year level as the original. You can enter marks and a target grade for it like any module.</p>
+      </Sheet>
 
       <SaveBar show={dirty} onSave={() => save()} onDiscard={reset} />
 
