@@ -7,7 +7,12 @@ import { LIBRARY, planGroups, semesterYear, tidySemesterName } from '../taylors'
 
 export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Semester; update: (fn: (d: AppData) => void) => void; go: (h: string) => void }) {
   const round = data.settings.roundMarks;
-  const row = cumulative(data).find((r) => r.semester.id === sem.id)!;
+  const rows = cumulative(data);
+  const idx = rows.findIndex((r) => r.semester.id === sem.id);
+  const row = rows[idx];
+  // "Now" = where you stand before this semester: the last earlier semester with a result.
+  const before = rows.slice(0, idx).reverse().find((r) => r.cgpa !== null);
+  const lastSem = rows.slice(0, idx).reverse().find((r) => r.stats.gpa !== null);
   const L = gpaLabels(data);
   const weighted = data.settings.yearWeighting !== false;
   const semYear = semesterYear(sem.name);
@@ -40,13 +45,29 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
     <div className="page">
       <TopBar back={() => go('#/')} title={sem.name} right={<button className="icon-btn" onClick={() => setEditing(true)} aria-label="Semester options"><Icon name="more" /></button>} />
       <div className="hero compact">
-        {row.stats.status === 'predicted' && <div className="pred-chip">Predicted</div>}
-        <div className="duo">
-          <div><div className="hero-label">{L.gpa}</div><div className="duo-value">{fmt(row.stats.gpa)}</div><div className="duo-cap">this semester</div></div>
-          <div><div className="hero-label">{L.cgpa}</div><div className="duo-value">{fmt(row.cgpa)}</div><div className="duo-cap">after this semester</div></div>
-        </div>
+        {row.stats.status === 'predicted' ? (
+          <div className="duo">
+            <div>
+              <div className="hero-label">Now</div>
+              <div className="duo-value">{fmt(before?.cgpa)}</div>
+              <div className="duo-cap">current {L.cgpa}</div>
+              <div className="duo-sub">{L.gpa} last semester {fmt(lastSem?.stats.gpa)}</div>
+            </div>
+            <div className="duo-pred">
+              <div className="hero-label">Predicted</div>
+              <div className="duo-value">{fmt(row.stats.gpa === null ? before?.cgpa : row.cgpa)}</div>
+              <div className="duo-cap">{L.cgpa} after this semester</div>
+              <div className="duo-sub">{L.gpa} this semester {fmt(row.stats.gpa)}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="duo">
+            <div><div className="hero-label">{L.gpa}</div><div className="duo-value">{fmt(row.stats.gpa)}</div><div className="duo-cap">this semester</div></div>
+            <div><div className="hero-label">{L.cgpa}</div><div className="duo-value">{fmt(row.cgpa)}</div><div className="duo-cap">after this semester</div></div>
+          </div>
+        )}
         <div className="hero-sub">{row.stats.credits} credits{exemptCr ? ` + ${exemptCr} exempted` : ''} · {row.stats.confirmed}/{row.stats.modules - row.stats.exempt} confirmed</div>
-        {row.stats.modules > 0 && row.stats.gpa === null && <p className="form-note" style={{ textAlign: 'center' }}>Add marks or an expected grade to a module to see a prediction.</p>}
+        {row.stats.modules > 0 && row.stats.gpa === null && <p className="form-note" style={{ textAlign: 'center' }}>Open a module and pick an expected grade (or add marks) to see your prediction.</p>}
       </div>
 
       <div className="section-head"><h2>Modules</h2></div>

@@ -271,3 +271,6 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .code-input::placeholder { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .code-input:focus { color: var(--ink); }
 .lib-row.taken { opacity: .55; cursor: default; }
+.duo-sub { font-size: 13px; color: var(--ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.duo-pred .hero-label { color: var(--c); }
+.duo-pred .duo-value { color: var(--c); }
