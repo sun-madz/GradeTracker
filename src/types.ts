@@ -28,6 +28,7 @@ export interface Semester {
   modules: Module[];
   officialCGPA?: number | null;     // CGPA printed on transcript after this semester
   officialCredits?: number | null;  // total credits printed on transcript after this semester
+  transcriptWGPA?: number | null;   // semester WGPA printed on transcript (for checking)
 }
 
 export interface Settings {
@@ -39,7 +40,7 @@ export interface Settings {
   yearWeighting: boolean;       // Taylor's WGPA/WCGPA (20:30:50 by year level)
 }
 
-export type Flexible = 'electives' | 'minor' | 'second-major';
+export type Flexible = 'extension' | 'electives' | 'minor' | 'second-major';
 
 export interface Plan {
   studentType: 'malaysian' | 'international' | null;

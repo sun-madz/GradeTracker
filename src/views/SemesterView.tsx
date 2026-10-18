@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Semester } from '../types';
-import { cumulative, fmt, gpaLabels, latest, levelOf, moduleStats } from '../grading';
+import { cumulative, fitLevels, fmt, gpaLabels, latest, levelOf, moduleStats } from '../grading';
 import { Chevron, GradePill, Icon, NumInput, Sheet, Toggle, TopBar } from '../ui';
 import { newModule, useDraft } from '../store';
-import { LIBRARY, planGroups, semesterYear, tidySemesterName } from '../taylors';
+import { LIBRARY, canonName, creditsFor, planGroups, semesterYear, tidySemesterName } from '../taylors';
 
 export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Semester; update: (fn: (d: AppData) => void) => void; go: (h: string) => void }) {
   const round = data.settings.roundMarks;
@@ -24,7 +24,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<{ name: string; code: string; credits: number | null; exempt: boolean } | null>(null);
 
-  const takenIn = useMemo(() => new Map(data.semesters.flatMap((s) => s.modules.map((m) => [m.name.toLowerCase(), s.name] as const))), [data.semesters]);
+  const takenIn = useMemo(() => new Map(data.semesters.flatMap((s) => s.modules.map((m) => [canonName(m.name, m.code), s.name] as const))), [data.semesters]);
   const mine = useMemo(() => new Set(planGroups(data.plan).flatMap((g) => g.modules)), [data.plan]);
   const results = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -57,6 +57,11 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
           <div className="duo">
             <Stat label="This semester" big={row.stats.gpa} bigCap={L.gpa} />
             <Stat label="Overall" big={row.cgpa} bigCap={L.cgpa} />
+          </div>
+        )}
+        {sem.transcriptWGPA != null && row.stats.status === 'final' && (
+          <div className={`tcheck ${row.stats.gpa !== null && Math.abs(Math.round(row.stats.gpa * 100) / 100 - sem.transcriptWGPA) < 0.0001 ? 'ok' : 'off'}`}>
+            Transcript {fmt(sem.transcriptWGPA)} {row.stats.gpa !== null && Math.abs(Math.round(row.stats.gpa * 100) / 100 - sem.transcriptWGPA) < 0.0001 ? '✓ matches' : '· doesn\'t match yet'}
           </div>
         )}
         <div className="hero-sub">
@@ -96,7 +101,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
             <label className="field"><span>Module name</span>
               <input className="text" value={picked.name} onChange={(e) => setPicked({ ...picked, name: e.target.value })} /></label>
             <label className="field"><span>Module code (optional)</span>
-              <input className="text" value={picked.code} placeholder="e.g. CSC61304" autoCapitalize="characters" onChange={(e) => setPicked({ ...picked, code: e.target.value.toUpperCase() })} /></label>
+              <input className="text" value={picked.code} placeholder="e.g. CSC61304" autoCapitalize="characters" onChange={(e) => { const code = e.target.value.toUpperCase().trim(); setPicked({ ...picked, code, credits: /\d$/.test(code) && Number(code.slice(-1)) > 0 ? creditsFor(picked.name, code) : picked.credits }); }} /></label>
             <label className="field"><span>Credits</span>
               <NumInput value={picked.credits} onChange={(v) => setPicked({ ...picked, credits: v })} placeholder="4" /></label>
             <div className="card"><Toggle on={picked.exempt} onChange={(v) => setPicked({ ...picked, exempt: v })} label="Exempted (credit transfer)" /></div>
@@ -122,7 +127,9 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
       </Sheet>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title="Semester">
-        <SemesterForm sem={sem} cgpaLabel={L.cgpa} onSave={(s) => { update((d) => { const i = d.semesters.findIndex((x) => x.id === sem.id); d.semesters[i] = { ...d.semesters[i], ...s }; }); setEditing(false); }} />
+        <SemesterForm sem={sem} cgpaLabel={L.cgpa} gpaLabel={L.gpa} appWGPA={row.stats.gpa} round={data.settings.roundMarks}
+          onApplyLevels={(changes) => update((d) => { const se = d.semesters.find((x) => x.id === sem.id)!; changes.forEach((c) => { const m = se.modules.find((x) => x.id === c.id); if (m) m.yearLevel = c.to; }); })}
+          onSave={(s) => { update((d) => { const i = d.semesters.findIndex((x) => x.id === sem.id); d.semesters[i] = { ...d.semesters[i], ...s }; }); setEditing(false); }} />
         <button className="danger" onClick={() => {
           if (!confirm(`Delete ${sem.name} and all its modules?`)) return;
           update((d) => { d.semesters = d.semesters.filter((s) => s.id !== sem.id); });
@@ -133,16 +140,42 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
   );
 }
 
-function SemesterForm({ sem, onSave, cgpaLabel }: { sem: Semester; cgpaLabel: string; onSave: (s: Pick<Semester, 'name' | 'officialCGPA' | 'officialCredits'>) => void }) {
-  const src = { name: sem.name, officialCGPA: sem.officialCGPA ?? null, officialCredits: sem.officialCredits ?? null };
+function SemesterForm({ sem, onSave, cgpaLabel, gpaLabel, appWGPA, round, onApplyLevels }: {
+  sem: Semester; cgpaLabel: string; gpaLabel: string; appWGPA: number | null; round: boolean;
+  onApplyLevels: (c: { id: string; to: 1 | 2 | 3 }[]) => void;
+  onSave: (s: Pick<Semester, 'name' | 'officialCGPA' | 'officialCredits' | 'transcriptWGPA'>) => void;
+}) {
+  const src = { name: sem.name, officialCGPA: sem.officialCGPA ?? null, officialCredits: sem.officialCredits ?? null, transcriptWGPA: sem.transcriptWGPA ?? null };
   const { draft, edit, dirty } = useDraft(src, sem.id, false);
+  const t = draft.transcriptWGPA;
+  const matches = t !== null && appWGPA !== null && Math.abs(Math.round(appWGPA * 100) / 100 - t) < 0.0001;
+  const fit = t !== null && !matches ? fitLevels(sem, round, t) : null;
   return (
     <>
       <label className="field"><span>Name</span><input className="text" value={draft.name} onChange={(e) => edit((s) => { s.name = e.target.value; })} placeholder="e.g. Year 2 Semester 1" /></label>
-      <p className="hint">From your transcript (optional). When filled, they replace the calculated running figure from this semester onwards.</p>
+
+      <div className="form-block" style={{ marginTop: 18 }}>
+        <div className="form-label">Check against your transcript</div>
+        <label className="field" style={{ margin: 0 }}><span>{gpaLabel} on your transcript for this semester</span>
+          <NumInput value={draft.transcriptWGPA} onChange={(v) => edit((s) => { s.transcriptWGPA = v; })} placeholder="e.g. 2.10" /></label>
+        {t !== null && (
+          <div className={`check ${matches ? 'ok' : 'off'}`}>
+            {matches ? <>Matches the app ({fmt(appWGPA)}).</> : <>
+              The app shows <b>{fmt(appWGPA)}</b>, but your transcript says <b>{fmt(t)}</b>.
+              {fit ? (fit.changes.length ? <>
+                <div style={{ marginTop: 8 }}>It matches if you change these year levels:</div>
+                <ul>{fit.changes.map((c) => <li key={c.id}>{c.name}: Year {c.from} → <b>Year {c.to}</b></li>)}</ul>
+                <button className="secondary" onClick={() => onApplyLevels(fit.changes)}>Apply these year levels</button>
+              </> : null) : <div style={{ marginTop: 8 }}>No mix of year levels gives {fmt(t)}, so a module's credits or grade must differ from your transcript. Check each module here against it.</div>}
+            </>}
+          </div>
+        )}
+      </div>
+
+      <p className="hint">Official {cgpaLabel} from your transcript (optional). When filled, it replaces the calculated figure from this semester onwards.</p>
       <div className="two">
-        <label className="field"><span>Official {cgpaLabel}</span><NumInput value={draft.officialCGPA} onChange={(v) => edit((s) => { s.officialCGPA = v; })} placeholder="e.g. 3.21" /></label>
-        <label className="field"><span>Total credits</span><NumInput value={draft.officialCredits} onChange={(v) => edit((s) => { s.officialCredits = v; })} placeholder="e.g. 25" /></label>
+        <label className="field"><span>Official {cgpaLabel}</span><NumInput value={draft.officialCGPA} onChange={(v) => edit((s) => { s.officialCGPA = v; })} placeholder="e.g. 2.70" /></label>
+        <label className="field"><span>Total credits</span><NumInput value={draft.officialCredits} onChange={(v) => edit((s) => { s.officialCredits = v; })} placeholder="e.g. 48" /></label>
       </div>
       <button className="primary" disabled={!dirty || !draft.name.trim()} onClick={() => onSave({ ...draft, name: tidySemesterName(draft.name) })}>Save</button>
     </>

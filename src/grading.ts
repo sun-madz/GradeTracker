@@ -82,7 +82,7 @@ export function moduleStats(m: Module, round: boolean): ModuleStats {
   return { totalWeight, weightAssessed, secured, projected, predicted, fromExpected, used, points, confirmed: !!m.transcript, complete, exempt: false, needed, warnings };
 }
 
-export const levelOf = (m: Module, s: Semester): 1 | 2 | 3 => m.yearLevel ?? autoLevel(m.name, s.name);
+export const levelOf = (m: Module, s: Semester): 1 | 2 | 3 => m.yearLevel ?? autoLevel(m.name, s.name, m.code);
 
 export interface SemesterStats {
   credits: number;           // credits counted in GPA
@@ -157,3 +157,28 @@ export const gpaLabels = (d: AppData) => (d.settings.yearWeighting !== false ? {
 
 // Latest standing across all semesters (the last running value).
 export const latest = (rows: CumulativeRow[]) => [...rows].reverse().find((r) => r.cgpa !== null) ?? null;
+
+export interface LevelFit { changes: { id: string; name: string; from: 1 | 2 | 3; to: 1 | 2 | 3 }[]; value: number }
+
+// Finds year levels for this semester's confirmed modules that reproduce the transcript WGPA,
+// preferring the fewest changes. Returns null when nothing matches (then credits or grades differ).
+export function fitLevels(s: Semester, round: boolean, target: number): LevelFit | null {
+  const mods = s.modules.map((m) => ({ m, st: moduleStats(m, round) }))
+    .filter(({ m, st }) => !st.exempt && st.confirmed && m.countsInGPA && st.points !== null && isNum(m.credits));
+  if (!mods.length || mods.length > 8) return null;
+  const cur = mods.map(({ m }) => levelOf(m, s));
+  let best: { lv: (1 | 2 | 3)[]; n: number; v: number } | null = null;
+  const total = 3 ** mods.length;
+  for (let k = 0; k < total; k++) {
+    let x = k; const lv: (1 | 2 | 3)[] = [];
+    for (let i = 0; i < mods.length; i++) { lv.push(((x % 3) + 1) as 1 | 2 | 3); x = Math.floor(x / 3); }
+    let wp = 0, wc = 0;
+    mods.forEach(({ m, st }, i) => { const w = m.credits * YEAR_WEIGHT[lv[i]]; wp += st.points! * w; wc += w; });
+    const v = wp / wc;
+    if (Math.abs(Math.round(v * 100) / 100 - target) > 0.0001) continue;
+    const n = lv.filter((l, i) => l !== cur[i]).length;
+    if (!best || n < best.n) best = { lv, n, v };
+  }
+  if (!best) return null;
+  return { value: best.v, changes: mods.map(({ m }, i) => ({ id: m.id, name: m.name, from: cur[i], to: best!.lv[i] })).filter((c) => c.from !== c.to) };
+}

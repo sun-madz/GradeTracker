@@ -33,7 +33,7 @@ export function normalise(raw: unknown): AppData {
   return {
     version: 1,
     settings: { ...base.settings, ...(d.settings ?? {}) },
-    plan: { ...base.plan, ...(d.plan ?? {}) },
+    plan: (() => { const pl = { ...base.plan, ...(d.plan ?? {}) }; if (!pl.flexible && pl.extension && pl.extension !== 'none') pl.flexible = 'extension'; return pl; })(),
     updatedAt: d.updatedAt ?? base.updatedAt,
     semesters: (d.semesters ?? []).map((s) => ({
       ...newSemester(s.name ?? 'Semester'), ...s, id: s.id ?? uid(), name: tidySemesterName(s.name ?? 'Semester'),

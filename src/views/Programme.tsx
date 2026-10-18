@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
-import { EXTENSIONS, FLEXIBLE, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
+import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, canonName, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
 import { SCALE, moduleStats } from '../grading';
 import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
@@ -12,7 +12,7 @@ function statusMap(d: AppData) {
   const map = new Map<string, Status>();
   for (const s of d.semesters) for (const m of s.modules) {
     const st = moduleStats(m, d.settings.roundMarks);
-    const k = m.name.trim().toLowerCase();
+    const k = canonName(m.name, m.code);
     const v: Status = st.exempt ? { kind: 'exempt', label: 'Exempted', sem: s.name }
       : st.confirmed ? { kind: 'done', label: 'Done', sem: s.name, grade: st.used, confirmed: true }
       : st.projected !== null ? { kind: 'progress', label: st.complete ? 'Awaiting result' : 'In progress', sem: s.name, grade: st.used }
@@ -22,7 +22,7 @@ function statusMap(d: AppData) {
   return map;
 }
 
-const flexLabel: Record<Flexible, string> = { electives: 'Free electives', minor: 'Minor', 'second-major': 'Second major' };
+const flexLabel: Record<Flexible, string> = { extension: 'Extension', electives: 'Free electives', minor: 'Minor', 'second-major': 'Second major' };
 const CREDITS_PER_MODULE = 4;
 
 export function Programme({ data, update }: { data: AppData; update: (fn: (d: AppData) => void) => void }) {
@@ -57,9 +57,8 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
       <div className="section-head"><h2>My plan</h2><button className="link small" onClick={() => setEditing(true)}>{hasPlan ? 'Edit' : 'Set up'}</button></div>
       <div className="card facts">
         <div><span>Specialisation</span><b>{p.specialisation ?? 'Not chosen'}</b></div>
-        <div><span>Extension</span><b>{p.extension === 'none' ? 'None' : p.extension ?? 'Not chosen'}</b></div>
         <div><span>Year 3 track</span><b>{p.track ?? 'Not chosen'}</b></div>
-        <div><span>Flexible education</span><b>{p.flexible === 'minor' ? `Minor · ${p.minor ?? '—'}` : p.flexible === 'second-major' ? `Second major${p.secondMajor ? ` · ${p.secondMajor}` : ''}` : p.flexible ? flexLabel[p.flexible] : 'Not chosen'}</b></div>
+        <div><span>Complementary study</span><b>{(p.flexible ?? (p.extension && p.extension !== 'none' ? 'extension' : null)) === 'extension' ? `Extension · ${p.extension ?? '—'}` : p.flexible === 'minor' ? `Minor · ${p.minor ?? '—'}` : p.flexible === 'second-major' ? `Second major${p.secondMajor ? ` · ${p.secondMajor}` : ''}` : p.flexible ? flexLabel[p.flexible] : 'Not chosen'}</b></div>
         <div><span>Student</span><b>{p.studentType === 'malaysian' ? 'Malaysian' : p.studentType === 'international' ? 'International' : 'Not chosen'}</b></div>
       </div>
 
@@ -141,7 +140,7 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         <div className="group-title">International students</div><ul className="mod-list">{UNIVERSITY_CORE_EARLIER.international.map((m) => <li key={m}>{m}</li>)}</ul>
       </div>
 
-      <div className="section-head"><h2>Flexible education</h2></div>
+      <div className="section-head"><h2>Complementary study</h2></div>
       <div className="card pad"><ul className="mod-list">{[...FLEXIBLE, ...RULES].map((m) => <li key={m}>{m}</li>)}</ul></div>
       <p className="hint">Lists come from Taylor's Flexible Education Guide (2026 intakes). Earlier intakes may differ slightly, so check your Programme Guide. <a href={FEG_SOURCE} target="_blank" rel="noreferrer">Source</a></p>
 
@@ -234,39 +233,37 @@ function Choice<T extends string>({ options, value, onChange, labels }: { option
 }
 
 function PlanForm({ plan, onSave }: { plan: Plan; onSave: (p: Plan) => void }) {
-  const { draft, edit, dirty } = useDraft(plan, 'plan', false);
-  const extOptions = draft.specialisation ? ['none', ...EXTENSIONS[draft.specialisation]] : [];
+  const init = { ...plan, flexible: plan.flexible ?? (plan.extension && plan.extension !== 'none' ? 'extension' as const : null) };
+  const { draft, edit, dirty } = useDraft(init, 'plan', false);
+  const extOptions = draft.specialisation ? EXTENSIONS[draft.specialisation] : EXTENSION_NAMES;
   return (
     <>
       <div className="form-block"><div className="form-label">Specialisation</div>
         <Choice options={SPECIALISATIONS.map((s) => s.title)} value={draft.specialisation}
-          onChange={(v) => edit((p) => { p.specialisation = v; if (p.extension && p.extension !== 'none' && !EXTENSIONS[v].includes(p.extension)) p.extension = null; })} /></div>
+          onChange={(v) => edit((p) => { p.specialisation = v; if (p.extension && !EXTENSIONS[v].includes(p.extension)) p.extension = null; })} /></div>
 
-      <div className="form-block"><div className="form-label">Extension package</div>
-        {draft.specialisation
-          ? <Choice options={extOptions} value={draft.extension} labels={{ none: 'No extension' }} onChange={(v) => edit((p) => { p.extension = v; })} />
-          : <p className="form-note">Choose a specialisation first. Your extension must be different from it.</p>}</div>
-
-      <div className="form-block"><div className="form-label">Year 3 track</div>
-        <Choice options={TRACKS} value={draft.track} onChange={(v) => edit((p) => { p.track = v; })} /></div>
-
-      <div className="form-block"><div className="form-label">Flexible education</div>
-        <Choice options={['electives', 'minor', 'second-major'] as Flexible[]} value={draft.flexible}
-          labels={{ electives: 'Free electives (5)', minor: 'Minor (5)', 'second-major': 'Second major (12)' }} onChange={(v) => edit((p) => { p.flexible = v; })} />
+      <div className="form-block"><div className="form-label">Complementary study (5 modules)</div>
+        <Choice options={['extension', 'minor', 'electives', 'second-major'] as Flexible[]} value={draft.flexible}
+          labels={{ extension: 'Extension', minor: 'Minor', electives: 'Free electives', 'second-major': 'Second major (12)' }} onChange={(v) => edit((p) => { p.flexible = v; })} />
+        {draft.flexible === 'extension' && <><div className="form-label" style={{ marginTop: 14 }}>Which extension?</div>
+          <Choice options={extOptions} value={draft.extension} onChange={(v) => edit((p) => { p.extension = v; })} />
+          <p className="form-note">Must be different from your specialisation.</p></>}
         {draft.flexible === 'minor' && <><div className="form-label" style={{ marginTop: 14 }}>Which minor?</div><Choice options={MINORS} value={draft.minor} onChange={(v) => edit((p) => { p.minor = v; })} /></>}
         {draft.flexible === 'second-major' && <><div className="form-label" style={{ marginTop: 14 }}>Which second major?</div><Choice options={SECOND_MAJOR_NAMES} value={draft.secondMajor || null} onChange={(v) => edit((p) => { p.secondMajor = v; })} /></>}
         {draft.flexible === 'electives' && <p className="form-note">After saving, tap "Choose electives" under My modules to pick them.</p>}
       </div>
 
+      <div className="form-block"><div className="form-label">Year 3 track</div>
+        <Choice options={TRACKS} value={draft.track} onChange={(v) => edit((p) => { p.track = v; })} /></div>
+
       <div className="form-block"><div className="form-label">Student</div>
         <Choice options={['malaysian', 'international'] as ('malaysian' | 'international')[]} value={draft.studentType}
           labels={{ malaysian: 'Malaysian', international: 'International' }} onChange={(v) => edit((p) => { p.studentType = v; })} />
-        <p className="form-note">Decides which university core modules you take.</p></div>
+        <p className="form-note">Decides which university core (MPU) modules you take.</p></div>
 
       <div className="form-block"><div className="form-label">University core list</div>
-        <Choice options={['current', 'earlier'] as ('current' | 'earlier')[]} value={draft.coreVersion ?? 'current'}
-          labels={{ current: 'Current (Youth and Leadership…)', earlier: 'Earlier intakes (Social Innovation Project…)' }} onChange={(v) => edit((p) => { p.coreVersion = v; })} />
-        <p className="form-note">Taylor's changed its university core modules. Pick the list that matches your transcript.</p></div>
+        <Choice options={['earlier', 'current'] as ('current' | 'earlier')[]} value={draft.coreVersion ?? 'earlier'}
+          labels={{ earlier: 'Study guide (EI, Social Innovation Project…)', current: 'Newer list (Youth and Leadership…)' }} onChange={(v) => edit((p) => { p.coreVersion = v; })} /></div>
 
       <button className="primary" disabled={!dirty} onClick={() => onSave(draft)}>Save plan</button>
     </>
