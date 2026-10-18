@@ -15,9 +15,11 @@ export interface Module {
   credits: number;
   countsInGPA: boolean;
   exempt?: boolean;            // exempted through credit transfer – earns credits, no grade
+  yearLevel?: 1 | 2 | 3 | null; // module's year level for WGPA weighting (null = automatic)
   assessments: Assessment[];
   transcript: Letter | null;   // official letter grade once released
   target: Letter | null;
+  expected?: Letter | null;    // your own predicted grade, used when there are no marks yet
 }
 
 export interface Semester {
@@ -34,6 +36,7 @@ export interface Settings {
   sheetKey: string;
   autoSync: boolean;
   creditsToGraduate: number | null;
+  yearWeighting: boolean;       // Taylor's WGPA/WCGPA (20:30:50 by year level)
 }
 
 export type Flexible = 'electives' | 'minor' | 'second-major';
@@ -47,6 +50,7 @@ export interface Plan {
   minor: string | null;
   secondMajor: string;
   electives: string[];          // free electives you plan to take
+  coreVersion?: 'current' | 'earlier'; // which university core list applies to your intake
 }
 
 export interface AppData {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AppData } from '../types';
-import { cumulative, fmt } from '../grading';
+import { cumulative, fmt, gpaLabels } from '../grading';
 import { Chevron, Icon, Sheet } from '../ui';
 import { newSemester } from '../store';
 import { SEMESTER_TEMPLATE, tidySemesterName } from '../taylors';
@@ -8,6 +8,7 @@ import type { SyncState } from '../store';
 
 export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (d: AppData) => void) => void; go: (h: string) => void; sync: SyncState }) {
   const rows = cumulative(data);
+  const L = gpaLabels(data);
   const last = [...rows].reverse().find((r) => r.cgpa !== null);
   const cgpa = last?.cgpa ?? null;
   const exempt = rows.length ? rows[rows.length - 1].cumExempt : 0;
@@ -31,7 +32,7 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
   return (
     <div className="page">
       <div className="hero">
-        <div className="hero-label">CGPA <SyncDot sync={sync} /></div>
+        <div className="hero-label">{L.cgpa} <SyncDot sync={sync} /></div>
         <div className="hero-value">{fmt(cgpa)}</div>
         <div className="hero-sub">
           {credits} credits{exempt ? ` (${exempt} exempted)` : ''}{anyPredicted ? ' · includes predictions' : cgpa !== null ? ' · confirmed' : ''}
@@ -55,12 +56,12 @@ export function Home({ data, update, go, sync }: { data: AppData; update: (fn: (
                 {r.stats.modules} module{r.stats.modules === 1 ? '' : 's'} · {r.stats.credits + r.stats.exemptCredits} cr
                 {r.stats.status === 'final' && <span className="tag ok">Final</span>}
                 {r.stats.status === 'predicted' && <span className="tag">Predicted</span>}
-                {r.official && <span className="tag ok">Official CGPA</span>}
+                {r.official && <span className="tag ok">Official {L.cgpa}</span>}
               </div>
             </div>
             <div className="rc-value">
               <div className="rc-num">{fmt(r.stats.gpa)}</div>
-              <div className="rc-cap">GPA</div>
+              <div className="rc-cap">{L.gpa}</div>
             </div>
             <Chevron />
           </button>

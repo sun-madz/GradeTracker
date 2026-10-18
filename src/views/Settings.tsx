@@ -94,7 +94,9 @@ export function Settings({ data, update, replace, sync, syncNow }: {
       <div className="section-head"><h2>Grading</h2></div>
       <div className="card">
         <Toggle on={s.roundMarks} onChange={(v) => set('roundMarks', v)} label="Round total mark before grading (79.5 → A)" />
+        <Toggle on={s.yearWeighting !== false} onChange={(v) => set('yearWeighting', v)} label="Year-level weighting (WGPA / WCGPA)" />
       </div>
+      <p className="hint">Taylor's bachelor's degrees from January 2021 intakes use WGPA and WCGPA, which weight Year 1, 2 and 3 modules at 20%, 30% and 50%. Turn this off for plain credit-weighted GPA and CGPA.</p>
       <label className="field"><span>Credits needed to graduate (optional)</span>
         <NumInput value={s.creditsToGraduate} onChange={(v) => set('creditsToGraduate', v)} placeholder="Check your programme handbook" /></label>
 

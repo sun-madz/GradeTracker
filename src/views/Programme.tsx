@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
-import { EXTENSIONS, FLEXIBLE, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, YEARS, planGroups, progress } from '../taylors';
+import { EXTENSIONS, FLEXIBLE, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
 import { SCALE, moduleStats } from '../grading';
 import { GradePill, Icon, NumInput, Sheet, Toggle } from '../ui';
@@ -135,6 +135,11 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
         <div className="group-title">Malaysian students</div><ul className="mod-list">{UNIVERSITY_CORE.malaysian.map((m) => <li key={m}>{m}</li>)}</ul>
         <div className="group-title">International students</div><ul className="mod-list">{UNIVERSITY_CORE.international.map((m) => <li key={m}>{m}</li>)}</ul>
       </div>
+      <div className="card pad group">
+        <div className="group-title">Earlier intakes</div><ul className="mod-list">{UNIVERSITY_CORE_EARLIER.all.map((m) => <li key={m}>{m}</li>)}</ul>
+        <div className="group-title">Malaysian students</div><ul className="mod-list">{UNIVERSITY_CORE_EARLIER.malaysian.map((m) => <li key={m}>{m}</li>)}</ul>
+        <div className="group-title">International students</div><ul className="mod-list">{UNIVERSITY_CORE_EARLIER.international.map((m) => <li key={m}>{m}</li>)}</ul>
+      </div>
 
       <div className="section-head"><h2>Flexible education</h2></div>
       <div className="card pad"><ul className="mod-list">{[...FLEXIBLE, ...RULES].map((m) => <li key={m}>{m}</li>)}</ul></div>
@@ -151,7 +156,7 @@ export function Programme({ data, update }: { data: AppData; update: (fn: (d: Ap
           </div>
         ))}
       </div>
-      <p className="hint">GPA = Σ(credits × grade points) ÷ Σ credits. Credit-transfer exemptions earn credits but carry no grade. Module lists are from Taylor's website and may change, so check with your faculty. <a href={PROGRAMME.source} target="_blank" rel="noreferrer">Source</a></p>
+      <p className="hint">WGPA / WCGPA = Σ(credits × year weight × grade points) ÷ Σ(credits × year weight), where Year 1 = 20%, Year 2 = 30% and Year 3 = 50% (bachelor's intakes from January 2021). Credit-transfer exemptions earn credits but carry no grade. Module lists are from Taylor's website and may change, so check with your faculty. <a href={PROGRAMME.source} target="_blank" rel="noreferrer">Source</a></p>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title="My plan">
         <PlanForm plan={p} onSave={(np) => { update((d) => { d.plan = np; }); setEditing(false); }} />
@@ -257,6 +262,11 @@ function PlanForm({ plan, onSave }: { plan: Plan; onSave: (p: Plan) => void }) {
         <Choice options={['malaysian', 'international'] as ('malaysian' | 'international')[]} value={draft.studentType}
           labels={{ malaysian: 'Malaysian', international: 'International' }} onChange={(v) => edit((p) => { p.studentType = v; })} />
         <p className="form-note">Decides which university core modules you take.</p></div>
+
+      <div className="form-block"><div className="form-label">University core list</div>
+        <Choice options={['current', 'earlier'] as ('current' | 'earlier')[]} value={draft.coreVersion ?? 'current'}
+          labels={{ current: 'Current (Youth and Leadership…)', earlier: 'Earlier intakes (Social Innovation Project…)' }} onChange={(v) => edit((p) => { p.coreVersion = v; })} />
+        <p className="form-note">Taylor's changed its university core modules. Pick the list that matches your transcript.</p></div>
 
       <button className="primary" disabled={!dirty} onClick={() => onSave(draft)}>Save plan</button>
     </>

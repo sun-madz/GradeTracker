@@ -1,4 +1,5 @@
 import type { AppData, Letter, Module, Semester } from './types';
+import { YEAR_WEIGHT, autoLevel } from './taylors';
 
 // Taylor's University undergraduate grading scale
 export const SCALE: { letter: Letter; min: number; max: number; points: number; label: string }[] = [
@@ -32,6 +33,7 @@ export interface ModuleStats {
   secured: number;              // marks banked out of 100
   projected: number | null;     // % if you keep your current average
   predicted: Letter | null;
+  fromExpected: boolean;        // prediction comes from your expected grade, not marks
   used: Letter | null;          // transcript if present, else predicted
   points: number | null;
   confirmed: boolean;
@@ -43,7 +45,7 @@ export interface ModuleStats {
 
 export function moduleStats(m: Module, round: boolean): ModuleStats {
   if (m.exempt) {
-    return { totalWeight: 0, weightAssessed: 0, secured: 0, projected: null, predicted: null, used: null, points: null,
+    return { totalWeight: 0, weightAssessed: 0, secured: 0, projected: null, predicted: null, fromExpected: false, used: null, points: null,
       confirmed: false, complete: true, exempt: true, needed: null, warnings: [] };
   }
   let totalWeight = 0, weightAssessed = 0, secured = 0;
@@ -61,7 +63,8 @@ export function moduleStats(m: Module, round: boolean): ModuleStats {
   if (m.assessments.length && Math.abs(totalWeight - 100) > 0.01) warnings.push(`Weights add up to ${+totalWeight.toFixed(2)}%, not 100%`);
   const projected = weightAssessed > 0 ? (secured / weightAssessed) * 100 : null;
   const complete = totalWeight > 0 && weightAssessed >= totalWeight;
-  const predicted = projected === null ? null : letterFor(projected, round);
+  const fromExpected = projected === null && !!m.expected;
+  const predicted = projected === null ? (m.expected ?? null) : letterFor(projected, round);
   const used = m.transcript ?? predicted;
   const points = used ? pointsOf(used) : null;
 
@@ -75,11 +78,15 @@ export function moduleStats(m: Module, round: boolean): ModuleStats {
       needed = v <= 0 ? { kind: 'secured' } : v > 1 ? { kind: 'out' } : { kind: 'pct', value: v * 100 };
     }
   }
-  return { totalWeight, weightAssessed, secured, projected, predicted, used, points, confirmed: !!m.transcript, complete, exempt: false, needed, warnings };
+  return { totalWeight, weightAssessed, secured, projected, predicted, fromExpected, used, points, confirmed: !!m.transcript, complete, exempt: false, needed, warnings };
 }
+
+export const levelOf = (m: Module, s: Semester): 1 | 2 | 3 => m.yearLevel ?? autoLevel(m.name, s.name);
 
 export interface SemesterStats {
   credits: number;           // credits counted in GPA
+  wCredits: number;          // credits × year weight (or plain credits when weighting is off)
+  wPoints: number;           // grade points × weighted credits
   exemptCredits: number;     // credits earned through credit transfer
   gpa: number | null;
   modules: number;
@@ -88,17 +95,20 @@ export interface SemesterStats {
   status: 'empty' | 'predicted' | 'final';
 }
 
-export function semesterStats(s: Semester, round: boolean): SemesterStats {
-  let qp = 0, credits = 0, confirmed = 0, exempt = 0, exemptCredits = 0;
+export function semesterStats(s: Semester, round: boolean, weighted = true): SemesterStats {
+  let qp = 0, credits = 0, wc = 0, confirmed = 0, exempt = 0, exemptCredits = 0;
   for (const m of s.modules) {
     const st = moduleStats(m, round);
     if (st.confirmed) confirmed++;
     if (st.exempt) { exempt++; exemptCredits += isNum(m.credits) ? m.credits : 0; continue; }
-    if (m.countsInGPA && st.points !== null && isNum(m.credits)) { qp += st.points * m.credits; credits += m.credits; }
+    if (m.countsInGPA && st.points !== null && isNum(m.credits)) {
+      const w = m.credits * (weighted ? YEAR_WEIGHT[levelOf(m, s)] : 1);
+      qp += st.points * w; wc += w; credits += m.credits;
+    }
   }
   const n = s.modules.length;
   return {
-    credits, exemptCredits, gpa: credits ? qp / credits : null, modules: n, confirmed, exempt,
+    credits, wCredits: wc, wPoints: qp, exemptCredits, gpa: wc ? qp / wc : null, modules: n, confirmed, exempt,
     status: n === 0 ? 'empty' : confirmed + exempt === n ? 'final' : 'predicted',
   };
 }
@@ -107,18 +117,22 @@ export interface CumulativeRow { semester: Semester; stats: SemesterStats; cumCr
 
 export function cumulative(d: AppData): CumulativeRow[] {
   const round = d.settings.roundMarks;
-  let cc = 0, ce = 0, cg: number | null = null;
+  const weighted = d.settings.yearWeighting !== false;
+  // Running totals: plain credits for display, weighted credits/points for the (W)CGPA.
+  let cc = 0, ce = 0, wc = 0, wp = 0, cg: number | null = null;
   return d.semesters.map((s) => {
-    const stats = semesterStats(s, round);
+    const stats = semesterStats(s, round, weighted);
     ce += stats.exemptCredits;
+    cc += stats.credits; wc += stats.wCredits; wp += stats.wPoints;
     const official = isNum(s.officialCGPA);
     if (official) {
-      cc = isNum(s.officialCredits) ? s.officialCredits : cc + stats.credits;
+      // Anchor to the transcript: keep the weighted credits, rescale the points to match.
+      if (isNum(s.officialCredits)) cc = s.officialCredits;
       cg = s.officialCGPA!;
-    } else if (stats.credits > 0) {
-      const prev = (cg ?? 0) * cc;
-      cc += stats.credits;
-      cg = (prev + (stats.gpa ?? 0) * stats.credits) / cc;
+      if (wc === 0 && isNum(s.officialCredits)) wc = s.officialCredits * YEAR_WEIGHT[1];
+      wp = cg * wc;
+    } else if (wc > 0) {
+      cg = wp / wc;
     }
     return { semester: s, stats, cumCredits: cc, cumExempt: ce, cgpa: cg, official };
   });
@@ -133,3 +147,5 @@ export function gradeTone(l: Letter | null): string {
 }
 
 export const fmt = (n: number | null | undefined, dp = 2) => (isNum(n) ? n.toFixed(dp) : '—');
+
+export const gpaLabels = (d: AppData) => (d.settings.yearWeighting !== false ? { gpa: 'WGPA', cgpa: 'WCGPA' } : { gpa: 'GPA', cgpa: 'CGPA' });

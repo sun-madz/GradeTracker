@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppData, Assessment, Module, Plan, Semester } from './types';
 import { pushToSheet } from './sync';
-import { DEFAULT_ASSESSMENTS, tidySemesterName } from './taylors';
+import { DEFAULT_ASSESSMENTS, codeFor, tidySemesterName } from './taylors';
 
 const KEY = 'grade-tracker-v1';
 
@@ -12,14 +12,14 @@ export const emptyPlan = (): Plan => ({ studentType: null, specialisation: null,
 export const emptyData = (): AppData => ({
   version: 1,
   semesters: [],
-  settings: { roundMarks: false, sheetUrl: '', sheetKey: '', autoSync: true, creditsToGraduate: null },
+  settings: { roundMarks: false, sheetUrl: '', sheetKey: '', autoSync: true, creditsToGraduate: null, yearWeighting: true },
   plan: emptyPlan(),
   updatedAt: new Date().toISOString(),
 });
 
-export function newModule(name: string, credits = 4, withDefaults = true, exempt = false): Module {
+export function newModule(name: string, credits = 4, withDefaults = true, exempt = false, code?: string): Module {
   return {
-    id: uid(), name, credits, countsInGPA: true, exempt, transcript: null, target: null,
+    id: uid(), name, code: (code ?? codeFor(name) ?? '').trim(), credits, countsInGPA: true, exempt, transcript: null, target: null,
     assessments: withDefaults ? DEFAULT_ASSESSMENTS.map((a) => ({ id: uid(), name: a.name, weight: a.weight, score: null, outOf: null })) : [],
   };
 }
@@ -38,7 +38,7 @@ export function normalise(raw: unknown): AppData {
     semesters: (d.semesters ?? []).map((s) => ({
       ...newSemester(s.name ?? 'Semester'), ...s, id: s.id ?? uid(), name: tidySemesterName(s.name ?? 'Semester'),
       modules: (s.modules ?? []).map((m) => ({
-        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(), exempt: !!m.exempt,
+        ...newModule(m.name ?? 'Module', 4, false), ...m, id: m.id ?? uid(), exempt: !!m.exempt, code: m.code || codeFor(m.name ?? '') || '',
         assessments: (m.assessments ?? []).map((a: Partial<Assessment>) => ({ id: uid(), name: '', weight: 0, score: null, outOf: null, ...a })),
       })),
     })),

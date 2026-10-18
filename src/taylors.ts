@@ -5,7 +5,7 @@
 import type { Plan } from './types';
 import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, EXTENSION_PACKAGES, MINOR_PACKAGES, SECOND_MAJORS } from './flexible';
 
-export interface LibModule { name: string; group: string; credits: number }
+export interface LibModule { name: string; group: string; credits: number; code?: string }
 
 export const PROGRAMME = {
   name: "Bachelor of Computer Science (Honours)",
@@ -17,7 +17,7 @@ export const PROGRAMME = {
   source: 'https://university.taylors.edu.my/en/study/explore-all-programmes/computer-science/undergraduate/bachelor-of-computer-science.html',
 };
 
-const core = (names: string[], group: string, credits = 4): LibModule[] => names.map((name) => ({ name, group, credits }));
+const core = (names: string[], group: string, credits = 4): LibModule[] => names.map((name) => ({ name, group, credits, code: KNOWN_CODES[name.toLowerCase()] }));
 
 export const YEARS: { title: string; groups: { title: string; modules: string[] }[] }[] = [
   {
@@ -50,11 +50,30 @@ export const SPECIALISATIONS: { title: string; modules: string[] }[] = [
   { title: 'Mobile Computing', modules: ['Introduction to Mobile Computing', 'Mobile Applications Development', 'Wireless Networks and Security', 'Internet of Things'] },
 ];
 
+// University core (MPU) – the current list on Taylor's website…
 export const UNIVERSITY_CORE = {
   all: ['Kursus Integriti dan Antirasuah', 'Emotional Intelligence in Action', 'Youth and Leadership in Malaysia', 'Community Impact and Engagement'],
   malaysian: ['Falsafah dan Cabaran Semasa', 'Aspirasi Negara Bangsa'],
   international: ['Bahasa Melayu Komunikasi 2', 'Citra Malaysia'],
 };
+// …and the list for earlier intakes (includes Social Innovation Project).
+export const UNIVERSITY_CORE_EARLIER = {
+  all: ['Falsafah dan Isu Semasa', 'Emotional Intelligence in Action', 'Kursus Integriti dan Antirasuah', 'Social Innovation Project'],
+  malaysian: ['Penghayatan Etika dan Peradaban'],
+  international: ['Bahasa Melayu Komunikasi 2'],
+};
+export const coreFor = (v?: 'current' | 'earlier') => (v === 'earlier' ? UNIVERSITY_CORE_EARLIER : UNIVERSITY_CORE);
+
+// Module codes known so far. Codes can change between intakes, so they're only suggestions – edit them in the app.
+export const KNOWN_CODES: Record<string, string> = {
+  'data structures and algorithms': 'ITS60504',
+  'systems analysis and design': 'CSC61404',
+  'machine learning and intelligent system': 'CSC61304',
+  'statistical inference and modelling': 'ITS66804',
+  'computer vision and natural language processing': 'ITS69204',
+  'internet of things': 'ITS67404',
+};
+export const codeFor = (name: string) => KNOWN_CODES[name.trim().toLowerCase()];
 
 export const FLEXIBLE = [
   'Choose one: five free electives, a minor (5 modules) or a second major (12 modules)',
@@ -69,6 +88,7 @@ export const LIBRARY: LibModule[] = uniq([
   ...YEARS[2].groups.flatMap((g) => core(g.modules, `Year 3 · ${g.title}`)),
   ...SPECIALISATIONS.flatMap((s) => core(s.modules, `Specialisation · ${s.title}`)),
   ...core([...UNIVERSITY_CORE.all, ...UNIVERSITY_CORE.malaysian, ...UNIVERSITY_CORE.international, 'Bahasa Kebangsaan A'], 'University core'),
+  ...core([...UNIVERSITY_CORE_EARLIER.all, ...UNIVERSITY_CORE_EARLIER.malaysian], 'University core · earlier intakes'),
   ...EXTENSION_PACKAGES.flatMap((e) => core(e.modules, `Extension · ${e.name}`)),
   ...MINOR_PACKAGES.flatMap((m) => core(m.modules, `Minor · ${m.name}`)),
   ...SECOND_MAJORS.flatMap((m) => core(m.modules, `Second major · ${m.name}`)),
@@ -129,7 +149,8 @@ export function planGroups(p: Plan): PlanGroup[] {
   }
   const track = YEARS[2].groups.find((t) => t.title === p.track);
   if (track) g.push({ key: 'y3', kind: 'fixed', title: `Year 3 · ${track.title}`, modules: track.modules });
-  const uc = [...UNIVERSITY_CORE.all, ...(p.studentType === 'malaysian' ? UNIVERSITY_CORE.malaysian : p.studentType === 'international' ? UNIVERSITY_CORE.international : [])];
+  const UC = coreFor(p.coreVersion);
+  const uc = [...UC.all, ...(p.studentType === 'malaysian' ? UC.malaysian : p.studentType === 'international' ? UC.international : [])];
   g.push({ key: 'uc', kind: 'fixed', title: 'University core', modules: uc, note: p.studentType ? undefined : 'Choose Malaysian or international in your plan to see the full list.' });
   const taken = new Set(g.filter((x) => x.kind === 'fixed').flatMap((x) => x.modules.map((m) => m.toLowerCase())));
   if (p.flexible === 'electives') {
@@ -179,3 +200,24 @@ export const DEFAULT_ASSESSMENTS = [
   { name: 'Group Project', weight: 30 },
   { name: 'Final', weight: 40 },
 ];
+
+// Year level of a module, for Taylor's WGPA weighting (Year 1 = 20%, Year 2 = 30%, Year 3 = 50%).
+// Programme modules use the year the programme structure lists them in; specialisation modules are Year 2.
+const LEVELS = new Map<string, 1 | 2 | 3>();
+YEARS[0].groups[0].modules.forEach((m) => LEVELS.set(m.toLowerCase(), 1));
+YEARS[1].groups[0].modules.forEach((m) => LEVELS.set(m.toLowerCase(), 2));
+SPECIALISATIONS.forEach((sp) => sp.modules.forEach((m) => { if (!LEVELS.has(m.toLowerCase())) LEVELS.set(m.toLowerCase(), 2); }));
+YEARS[2].groups.forEach((g) => g.modules.forEach((m) => LEVELS.set(m.toLowerCase(), 3)));
+
+export const YEAR_WEIGHT: Record<1 | 2 | 3, number> = { 1: 0.2, 2: 0.3, 3: 0.5 };
+
+export function semesterYear(name: string): 1 | 2 | 3 | null {
+  const m = name.match(/year\s*(\d)/i);
+  if (!m) return null;
+  return Math.min(3, Math.max(1, Number(m[1]))) as 1 | 2 | 3;
+}
+
+// Automatic level: the programme structure first, otherwise the year of the semester it's in.
+export function autoLevel(moduleName: string, semesterName: string): 1 | 2 | 3 {
+  return LEVELS.get(moduleName.trim().toLowerCase()) ?? semesterYear(semesterName) ?? 1;
+}
