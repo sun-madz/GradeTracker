@@ -405,3 +405,72 @@ main:has(.savebar) { padding-bottom: calc(170px + env(safe-area-inset-bottom)); 
 .collapse-value { color: var(--muted); font-size: 15px; font-weight: 600; }
 .collapse-body { padding: 0 16px 16px; }
 .small-need { margin: 8px 6px 0; font-size: 13px; color: var(--muted); }
+
+/* ===== Phone-settings style everywhere ===== */
+:root { --group-bg: var(--card); --r-group: 26px; }
+@media (prefers-color-scheme: dark) { :root { --group-bg: #1c1d21; } }
+
+/* every card: big radius, settings colours */
+.card, .menu-group, .hero-card { border-radius: var(--r-group); }
+.card { background: var(--group-bg); }
+
+/* lists become one grouped card with inset dividers */
+.list { gap: 0; background: var(--group-bg); border-radius: var(--r-group); overflow: hidden; box-shadow: var(--shadow); }
+@media (prefers-color-scheme: dark) { .list { box-shadow: none; } }
+.list > .card { border-radius: 0; box-shadow: none; border: 0; background: transparent; position: relative; }
+.list > .card + .card::before { content: ''; position: absolute; top: 0; left: 74px; right: 18px; border-top: 1px solid var(--line); }
+.list > .card.year + .card.year::before { left: 18px; }
+.row-card { padding: 14px 16px 14px 18px; gap: 16px; }
+.row-card:active { background: color-mix(in srgb, var(--ink) 5%, transparent); transform: none; }
+.rc-title { font-size: 17px; font-weight: 500; }
+
+/* grade badge = round icon on the left, like the settings icons */
+.row-card > .pill { order: -1; width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%; font-size: 14px; border-width: 1.5px; }
+.row-card > .pill.solid { border: 0; }
+.mod-list.check .pill { border-radius: 50%; width: 32px; min-width: 32px; height: 32px; padding: 0; }
+.scale-row .pill { border-radius: 50%; width: 36px; min-width: 36px; height: 36px; padding: 0; }
+
+/* year groups (Semesters tab) */
+.list > .card.year { overflow: visible; }
+.year-head .rc-title { font-weight: 600; }
+.year .sem-row { background: transparent; padding-left: 34px; position: relative; border-top: 0; }
+.year .sem-row::before { content: ''; position: absolute; top: 0; left: 34px; right: 18px; border-top: 1px solid var(--line); }
+.year-head::before { content: none; }
+
+/* add buttons: a row in the same style */
+.add-btn { border: 0; border-radius: var(--r-group); background: var(--group-bg); box-shadow: var(--shadow); justify-content: flex-start; padding: 16px 18px; gap: 16px; font-size: 17px; font-weight: 500; color: var(--ink); }
+.add-btn svg { width: 38px; height: 38px; padding: 9px; border-radius: 50%; background: var(--accent); color: #fff; }
+@media (prefers-color-scheme: dark) { .add-btn { box-shadow: none; } }
+
+/* inputs, buttons, chips */
+input.text, select.text, .field input.num { border-radius: 16px; border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, var(--group-bg)); }
+.primary, .secondary { border-radius: 99px; }
+.secondary { background: color-mix(in srgb, var(--ink) 6%, var(--group-bg)); border: 0; }
+.chip { border-radius: 99px; border-color: transparent; background: color-mix(in srgb, var(--ink) 7%, var(--group-bg)); }
+.letter-grid .chip { border-radius: 14px; }
+.segmented { border-radius: 99px; background: color-mix(in srgb, var(--ink) 8%, var(--group-bg)); }
+.segmented button { border-radius: 99px; }
+.segmented button.on { background: var(--group-bg); }
+
+/* module page */
+.assess { padding: 12px 10px 12px 18px; }
+.assess-name { font-size: 16px; }
+.collapse { margin-top: 12px; }
+.collapse-head { padding: 18px; }
+.collapse-title { font-weight: 500; font-size: 17px; }
+.retake-card, .exempt-card { border-radius: var(--r-group); }
+
+/* programme / settings sub-pages */
+.card.pad { padding: 16px 18px; }
+.card.pad.group + .card.pad.group { margin-top: 12px; }
+.group-title { font-size: 17px; font-weight: 600; }
+.mod-list li { padding: 11px 0; font-size: 16px; }
+.facts div { padding: 15px 18px; }
+.howto { margin-top: 14px; }
+.sheet { border-radius: 28px 28px 0 0; background: var(--group-bg); }
+.toggle-row { padding: 16px 18px; }
+.card .toggle-row + .toggle-row { border-top: 1px solid var(--line); }
+.section-head { padding: 22px 8px 8px; }
+.section-head h2 { font-size: 13px; letter-spacing: .04em; }
+.savebar { border-radius: 99px; background: var(--group-bg); }
+.mod-summary .pill.lg { border-radius: 50%; width: 60px; min-width: 60px; height: 60px; padding: 0; font-size: 22px; }
