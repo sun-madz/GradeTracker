@@ -72,3 +72,54 @@ export const RULES = [
   'Free electives: 5 modules from the three clusters, unrelated to your major. Aim for at least one from each cluster.',
   'Taking an extension and a minor together: no shared compulsory modules, and the minor must be from a different school.',
 ];
+
+// Free electives grouped by the school that teaches the subject. Taylor's guide only lists the three
+// clusters, so the school is inferred from the subject area.
+const SCHOOL_OF: Record<string, string> = {};
+const put = (school: string, mods: string[]) => mods.forEach((m) => { SCHOOL_OF[m] = school; });
+put("Taylor's Business School", ['Microeconomics', 'Applied Econometrics', 'Introduction to Accounting', 'Malaysian Taxation', 'Ethics and Corporate Governance',
+  'Islamic Banking and Finance', 'Introduction to International Business', 'Entrepreneurship and Small Business', 'Introduction to Family Business',
+  'Environmental, Social, and Governance (ESG) Principles and Practices', 'Understanding Entrepreneurialism', 'Introduction to Finance', 'Bank Management',
+  'Financial Markets', 'Futures and Options', 'Personal Financial Planning', 'Portfolio Management', 'Risk Management', 'Human Resource Management',
+  'Introduction to Management', 'Sustainable Supply Chain Management', 'Leadership and Change Management', 'Social Entrepreneurship and Ethics',
+  'Project Management Fundamentals', 'Risk Management for Project', 'Project Communication and Stakeholder Management', 'Principles of Marketing',
+  'Marketing Analytics', 'Mathematics of Finance']);
+put('School of Media and Communication', ['Brand Management', 'Advertising Fundamentals', 'Strategic Copywriting', 'Introduction to Mass Communication',
+  'Intercultural Communication', 'Media Writing', 'Organisational Communication', 'Public Speaking for Success', 'Introduction to Social Media',
+  'Narrative Writing', 'Film Studies', 'Trends in New Media', 'Journalism Fundamentals', 'Newsgathering and Writing', 'Narrative Journalism',
+  'Activism and the Media', 'Public Relations Principles', 'Promotional Writing', 'Publicity and Media Relations', 'Crisis Management', 'International Public Relations']);
+put('School of Education', ['Behavioural Management in Special Education', 'Introduction to Children with Special Educational Needs',
+  'Supporting Children with Specific Learning Difficulties', 'Policy and Legislative Framework on Special Education',
+  'Assessment and Intervention for Children with Special Educational Needs', 'Expressive Arts Therapy', 'Music and Drama Therapy',
+  "Promoting Children's Wellbeing", 'Early Science and Numeracy', 'Literacy and Language Development', 'Managing Behaviour and Safety',
+  'Advancing Play and Learning', 'Inclusive Education']);
+put('School of Liberal Arts and Sciences', ['French Basic', 'French Intermediate', 'Korean I', 'Korean II', 'Chinese Language I', 'Chinese Language II',
+  'Introduction to Psychology', 'Human Personality', 'Learning and Motivation', 'Developmental Psychology', 'Social Psychology', 'Ethics in Psychology',
+  'Fundamentals of Choir Performance', 'Fundamentals of Mechanics and Filmmaking', 'Introduction to Acting', 'Introduction to Dance and Creative Processes',
+  'Introduction to Creative Writing']);
+put("Taylor's Law School", ['Alternative Dispute Resolution', 'Legal Skills and Methods']);
+put('School of Hospitality, Tourism and Events', ['Data and Media Analysis for Tourism', 'Sociology of Tourism', 'Holistic Approach to Health and Wellness',
+  'Destination Geography & Analysis', 'Tourism Economics', 'Adventure Tourism', 'Events Project Management', 'Events and Entertainment',
+  'Conventions and Meetings Management', 'Event and Tourism Risk Management', 'Event Sponsorship and Funding', 'Social Media for Events',
+  'Sustainable Event Management', 'Service Quality Management in Hospitality']);
+put('School of Food Studies and Gastronomy', ['Food Sociology', 'Food Media', 'Food Business Management', 'Sensory Evaluation of Food',
+  'Food Safety and Sanitation', 'Food Packaging and Labelling']);
+put("Taylor's Design School", ['Illustration and Visual Narrative', 'Typography', 'Design Principles', 'Digital Photography and Imaging', 'Intercultural Design',
+  'Design Communication', 'Inter Design Exchange', 'Contemporary Design Theories', 'Narrative Media', 'Performative Media', 'Video and Sound Production']);
+put('School of Architecture, Building and Design', ['Architecture and Environment', 'Architecture History and Theory', 'Materials and Finishes', 'Lighting Interactive Design']);
+put('School of Computer Science', ['Computer Applications', 'Management Information Systems', 'Data Mining', 'Mobile Applications Development', 'Programming',
+  'Database Systems', 'Object Oriented Programming', 'Human Computer Interaction', 'Web Development Technologies', 'Web Applications Programming',
+  'Data Science Principles', 'Introduction to Mobile Computing', 'Wireless Networks and Security', 'Internet of Things']);
+put('School of Engineering', ['Embedded Systems', 'Home Automation', 'Occupational Health and Safety Management', 'Fundamentals of Linear Algebra']);
+put('School of Biosciences', ['Sustainable Agriculture', 'Cell Biology', 'Introduction to Biotechnology', 'Principles of Organic Chemistry', 'Fundamental of Chemistry',
+  'Introduction to Food Science and Nutrition', 'Introduction to Human Nutrition']);
+
+export function electivesBySchool(): { school: string; modules: { name: string; cluster: string }[] }[] {
+  const out = new Map<string, { name: string; cluster: string }[]>();
+  for (const c of ELECTIVE_CLUSTERS) for (const name of c.modules) {
+    const school = SCHOOL_OF[name] ?? 'Other';
+    if (!out.has(school)) out.set(school, []);
+    if (!out.get(school)!.some((x) => x.name === name)) out.get(school)!.push({ name, cluster: c.short });
+  }
+  return [...out].map(([school, modules]) => ({ school, modules })).sort((a, b) => (a.school === 'Other' ? 1 : b.school === 'Other' ? -1 : a.school.replace("Taylor's ", '').localeCompare(b.school.replace("Taylor's ", ''))));
+}

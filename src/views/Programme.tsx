@@ -1,9 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { AppData, Flexible, Plan } from '../types';
 import { EXTENSIONS, EXTENSION_NAMES, FLEXIBLE, INTAKE_MONTHS, PROGRAMME_SEMESTERS, canonName, completion, MINORS, PROGRAMME, SECOND_MAJOR_NAMES, SPECIALISATIONS, TRACKS, UNIVERSITY_CORE, UNIVERSITY_CORE_EARLIER, YEARS, planGroups, progress } from '../taylors';
-import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES } from '../flexible';
+import { ELECTIVE_CLUSTERS, ELECTIVES_NEEDED, FEG_SOURCE, RULES, electivesBySchool } from '../flexible';
 import { SCALE, isFail, moduleStats } from '../grading';
-import { GradePill, Icon, MENU_COLORS, MenuGroup, MenuRow, NumInput, Sheet, Toggle, TopBar } from '../ui';
+import { Collapse, GradePill, Icon, MENU_COLORS, MenuGroup, MenuRow, NumInput, Sheet, Toggle, TopBar } from '../ui';
 import { newModule, useDraft } from '../store';
 
 type Status = { kind: 'exempt' | 'done' | 'progress' | 'planned' | 'failed'; label: string; sem: string; grade?: ReturnType<typeof moduleStats>['used']; confirmed?: boolean };
@@ -29,6 +29,7 @@ const CREDITS_PER_MODULE = 4;
 export function Programme({ data, update, section, go }: { data: AppData; update: (fn: (d: AppData) => void) => void; section?: string; go: (h: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [editingIntake, setEditingIntake] = useState(false);
+  const [openSchool, setOpenSchool] = useState<string | null>(null);
   const done = completion(data.plan);
   const [view, setView] = useState<'remaining' | 'all'>('remaining');
   const [adding, setAdding] = useState<string | null>(null);
@@ -185,6 +186,25 @@ export function Programme({ data, update, section, go }: { data: AppData; update
       </div>
 
   </>);
+  if (section === 'electives') return sub('Free electives', <>
+      <p className="hint">Grouped by the school that teaches each subject. Taylor's guide sorts them into three clusters (AHSS, BSM, STS), shown on each module, and each school decides which ones it offers before registration. Choose five, ideally one from each cluster.</p>
+      {electivesBySchool().map(({ school, modules }) => (
+        <Collapse key={school} title={school} value={`${modules.length}`} open={openSchool === school} onToggle={() => setOpenSchool(openSchool === school ? null : school)}>
+          <ul className="mod-list check">
+            {modules.map(({ name, cluster }) => {
+              const st = status.get(name.toLowerCase());
+              return (
+                <li key={name}>
+                  <span className={`dot ${st?.kind ?? 'todo'}`} />
+                  <span className="cl-name">{name}<small>{cluster}{st ? ` · ${st.label} · ${st.sem}` : (p.electives ?? []).includes(name) ? ' · Planned' : ''}</small></span>
+                  {!st && <button className="icon-btn subtle add-mini" aria-label={`Add ${name} to a semester`} onClick={() => setAdding(name)}><Icon name="plus" /></button>}
+                </li>
+              );
+            })}
+          </ul>
+        </Collapse>
+      ))}
+  </>);
   if (section === 'complementary') return sub('Complementary study', <>
       <div className="card pad"><ul className="mod-list">{[...FLEXIBLE, ...RULES].map((m) => <li key={m}>{m}</li>)}</ul></div>
       <p className="hint">Lists come from Taylor's Flexible Education Guide (2026 intakes). Earlier intakes may differ slightly, so check your Programme Guide. <a href={FEG_SOURCE} target="_blank" rel="noreferrer">Source</a></p>
@@ -217,6 +237,7 @@ export function Programme({ data, update, section, go }: { data: AppData; update
         <MenuRow icon="star" color={MENU_COLORS.purple} title="Specialisations" sub="Data Science, AI, Cyber Security, Mobile" onClick={() => go('#/programme/specialisations')} />
         <MenuRow icon="flag" color={MENU_COLORS.teal} title="University core (MPU)" sub="Compulsory general studies" onClick={() => go('#/programme/core')} />
         <MenuRow icon="puzzle" color={MENU_COLORS.pink} title="Complementary study" sub="Extensions, minors, electives" onClick={() => go('#/programme/complementary')} />
+        <MenuRow icon="book" color={MENU_COLORS.orange} title="Free electives" sub="Grouped by school" onClick={() => go('#/programme/electives')} />
       </MenuGroup>
       <MenuGroup>
         <MenuRow icon="scale" color={MENU_COLORS.lime} title="Grading scale" sub="Grades, points and WGPA weighting" onClick={() => go('#/programme/grading')} />
