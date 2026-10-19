@@ -50,7 +50,7 @@ export function Home({ data, go, sync }: { data: AppData; go: (h: string) => voi
                   <div className="rc-main">
                     <div className="rc-title">{m.name}</div>
                     <div className="rc-sub">
-                      {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Target ${st.predicted}` : 'No marks yet'}`}
+                      {[m.code, !st.exempt && !st.confirmed && st.projected !== null ? `${fmt(st.projected, 1)}%` : null].filter(Boolean).join(' · ')}
                       {st.exempt && <span className="tag ex">Credit transfer</span>}
                       {st.confirmed && <span className="tag ok">Transcript</span>}
                     </div>

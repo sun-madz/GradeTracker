@@ -81,7 +81,7 @@ export function SemesterView({ data, sem, update, go }: { data: AppData; sem: Se
               <div className="rc-main">
                 <div className="rc-title">{m.name}</div>
                 <div className="rc-sub">
-                  {m.code ? `${m.code} · ` : ''}{m.credits} cr{st.exempt || st.confirmed ? '' : ` · ${st.projected !== null ? `${fmt(st.projected, 1)}%` : st.fromExpected ? `Target ${st.predicted}` : 'No marks yet'}`}
+                  {[m.code, !st.exempt && !st.confirmed && st.projected !== null ? `${fmt(st.projected, 1)}%` : null].filter(Boolean).join(' · ')}
                   {st.exempt && <span className="tag ex">Credit transfer</span>}
                   {m.retakeOf && <span className="tag">Retake</span>}
                   {replaced.has(m.id) ? <span className="tag ok">Replaced by retake</span> : isFail(m.transcript) ? <span className="tag fail">Retake needed</span> : null}
